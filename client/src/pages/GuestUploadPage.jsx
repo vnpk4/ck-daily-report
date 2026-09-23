@@ -224,7 +224,6 @@ export default function GuestUploadPage({ onShowToast }) {
         selectedFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl));
         setSelectedFiles([]);
         setNote('');
-        setCustomCategory('');
       } else {
         onShowToast('error', result.message || 'Lỗi khi gửi báo cáo.');
       }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Download, 
   Calendar, 
@@ -15,7 +15,11 @@ import {
   Image as ImageIcon,
   Check,
   X,
-  Trophy
+  Trophy,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import Lightbox from '../components/Lightbox';
 import CskvRankingPage from './CskvRankingPage';
@@ -54,6 +58,26 @@ export default function AdminDashboardPage({ onShowToast }) {
   const [loading, setLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10); // 10, 20, 50
+
+  const totalReportsCount = reports.length;
+  const totalPages = Math.max(1, Math.ceil(totalReportsCount / itemsPerPage));
+
+  // Tự động điều chỉnh trang nếu vượt quá số trang hiện tại
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  // Danh sách báo cáo sau khi cắt theo trang
+  const paginatedReports = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return reports.slice(start, start + itemsPerPage);
+  }, [reports, currentPage, itemsPerPage]);
+
   // Region Edit Modal State
   const [showRegionModal, setShowRegionModal] = useState(false);
   const [editingRegion, setEditingRegion] = useState(null);
@@ -74,6 +98,7 @@ export default function AdminDashboardPage({ onShowToast }) {
   // Fetch reports when filters change
   useEffect(() => {
     if (isAuthenticated) {
+      setCurrentPage(1);
       fetchReports();
     }
   }, [selectedRegion, selectedCategory, startDate, endDate, isAuthenticated]);
@@ -646,13 +671,117 @@ export default function AdminDashboardPage({ onShowToast }) {
       </div>
 
       {/* Reports Feed */}
-      <div>
+      <div id="reports-feed">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h2 style={{ fontSize: '1.15rem', fontWeight: 700 }}>
             Danh Sách Báo Cáo ({meta.totalReports} lượt gửi / {meta.totalImages} ảnh)
           </h2>
           {loading && <span style={{ color: 'var(--primary)', fontSize: '0.85rem' }}>Đang tải dữ liệu...</span>}
         </div>
+
+        {/* Top Pagination Bar */}
+        {totalReportsCount > 0 && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div 
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
+                padding: '0.75rem 1rem',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: 'var(--shadow-sm)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                <span>
+                  Trang <strong>{currentPage}</strong> / <strong>{totalPages}</strong> (Hiển thị <strong>{(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, totalReportsCount)}</strong> / {totalReportsCount} lượt gửi)
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Mỗi trang:</span>
+                  <select
+                    className="form-control"
+                    style={{ padding: '0.2rem 0.45rem', fontSize: '0.8rem', width: 'auto', fontWeight: 600 }}
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <option value={10}>10 báo cáo</option>
+                    <option value={20}>20 báo cáo</option>
+                    <option value={50}>50 báo cáo</option>
+                  </select>
+                </div>
+              </div>
+
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.3rem 0.5rem', fontSize: '0.8rem' }}
+                    disabled={currentPage === 1}
+                    onClick={() => {
+                      setCurrentPage(1);
+                      document.getElementById('reports-feed')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    title="Trang đầu"
+                  >
+                    <ChevronsLeft size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.3rem 0.5rem', fontSize: '0.8rem' }}
+                    disabled={currentPage === 1}
+                    onClick={() => {
+                      setCurrentPage((p) => Math.max(1, p - 1));
+                      document.getElementById('reports-feed')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    title="Trang trước"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, padding: '0 0.4rem', color: 'var(--text-primary)' }}>
+                    {currentPage} / {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.3rem 0.5rem', fontSize: '0.8rem' }}
+                    disabled={currentPage === totalPages}
+                    onClick={() => {
+                      setCurrentPage((p) => Math.min(totalPages, p + 1));
+                      document.getElementById('reports-feed')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    title="Trang sau"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.3rem 0.5rem', fontSize: '0.8rem' }}
+                    disabled={currentPage === totalPages}
+                    onClick={() => {
+                      setCurrentPage(totalPages);
+                      document.getElementById('reports-feed')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    title="Trang cuối"
+                  >
+                    <ChevronsRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {reports.length === 0 && !loading ? (
           <div className="glass-card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem' }}>
@@ -668,7 +797,7 @@ export default function AdminDashboardPage({ onShowToast }) {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {reports.map((report) => (
+            {paginatedReports.map((report) => (
               <div key={report.id} className="glass-card" style={{ padding: '1.25rem' }}>
                 {/* Report Card Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
@@ -732,6 +861,89 @@ export default function AdminDashboardPage({ onShowToast }) {
                 )}
               </div>
             ))}
+
+            {/* Bottom Pagination Bar */}
+            {totalPages > 1 && (
+              <div 
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                  padding: '0.85rem 1rem',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: 'var(--shadow-sm)',
+                  marginTop: '0.5rem'
+                }}
+              >
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  Đang xem trang <strong>{currentPage}</strong> trên <strong>{totalPages}</strong> (Tổng <strong>{totalReportsCount}</strong> lượt gửi)
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.4rem 0.75rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    disabled={currentPage === 1}
+                    onClick={() => {
+                      setCurrentPage(1);
+                      document.getElementById('reports-feed')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    <ChevronsLeft size={15} />
+                    <span>Đầu</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.4rem 0.75rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    disabled={currentPage === 1}
+                    onClick={() => {
+                      setCurrentPage((p) => Math.max(1, p - 1));
+                      document.getElementById('reports-feed')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    <ChevronLeft size={15} />
+                    <span>Trước</span>
+                  </button>
+
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, padding: '0 0.5rem', color: 'var(--cand-red)' }}>
+                    Trang {currentPage} / {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.4rem 0.75rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    disabled={currentPage === totalPages}
+                    onClick={() => {
+                      setCurrentPage((p) => Math.min(totalPages, p + 1));
+                      document.getElementById('reports-feed')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    <span>Sau</span>
+                    <ChevronRight size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.4rem 0.75rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    disabled={currentPage === totalPages}
+                    onClick={() => {
+                      setCurrentPage(totalPages);
+                      document.getElementById('reports-feed')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    <span>Cuối</span>
+                    <ChevronsRight size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
