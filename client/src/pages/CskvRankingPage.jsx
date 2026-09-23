@@ -152,7 +152,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
     } else {
       activeReportsList.forEach((r, idx) => {
         const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
-        text += `${medal} ${r.region_name}: ${r.image_count} Ảnh (${r.report_count} báo cáo)\n`;
+        text += `${medal} ${r.region_name}: ${r.image_count} trường hợp\n`;
       });
     }
 
@@ -484,7 +484,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                 <span>{top1 ? top1.region_name : 'Chưa có báo cáo'}</span>
               </div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                {top1 ? `${top1.image_count} ảnh (${top1.report_count} báo cáo)` : 'Chờ lượt báo cáo đầu tiên'}
+                {top1 ? `${top1.image_count} trường hợp (${top1.percentage}% toàn phường)` : 'Chờ lượt báo cáo đầu tiên'}
               </div>
             </div>
             <div 
@@ -545,8 +545,8 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                   <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
                     {top2.region_name}
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                    <strong style={{ color: 'var(--cand-red)' }}>{top2.image_count}</strong> ảnh ({top2.report_count} báo cáo)
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                    <strong style={{ color: 'var(--cand-red)', fontSize: '1rem' }}>{top2.image_count}</strong> trường hợp
                   </div>
                   <div 
                     style={{
@@ -589,8 +589,8 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                 <span>{top1.region_name}</span>
                 <Flame size={18} color="var(--cand-gold)" />
               </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                <strong style={{ color: 'var(--cand-red)', fontSize: '1rem' }}>{top1.image_count}</strong> ảnh ({top1.report_count} báo cáo)
+              <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                <strong style={{ color: 'var(--cand-red)', fontSize: '1.15rem' }}>{top1.image_count}</strong> trường hợp
               </div>
               <div 
                 style={{
@@ -624,8 +624,8 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                   <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
                     {top3.region_name}
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                    <strong style={{ color: 'var(--cand-red)' }}>{top3.image_count}</strong> ảnh ({top3.report_count} báo cáo)
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                    <strong style={{ color: 'var(--cand-red)', fontSize: '1rem' }}>{top3.image_count}</strong> trường hợp
                   </div>
                   <div 
                     style={{
@@ -731,8 +731,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                 >
                   <th style={{ padding: '0.75rem 0.5rem', width: '60px', textAlign: 'center' }}>Hạng</th>
                   <th style={{ padding: '0.75rem 0.75rem' }}>Khu Vực CSKV</th>
-                  <th style={{ padding: '0.75rem 0.75rem', minWidth: '180px' }}>Số Báo Cáo Hoàn Thành</th>
-                  <th style={{ padding: '0.75rem 0.75rem', textAlign: 'center', width: '110px' }}>Ảnh Minh Chứng</th>
+                  <th style={{ padding: '0.75rem 0.75rem', minWidth: '190px' }}>Số Trường Hợp Đã Hoàn Thành</th>
                   <th style={{ padding: '0.75rem 0.75rem' }}>Nội Dung Thực Hiện</th>
                   <th style={{ padding: '0.75rem 0.75rem', textAlign: 'center', width: '130px' }}>Đánh Giá Thi Đua</th>
                 </tr>
@@ -817,18 +816,18 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                         </div>
                       </td>
 
-                      {/* Completed Reports Count & Progress Bar */}
+                      {/* Số Trường Hợp Đã Hoàn Thành (Tính theo số lượng ảnh) */}
                       <td style={{ padding: '0.85rem 0.75rem' }}>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '0.3rem' }}>
-                          <span style={{ fontSize: '1.15rem', fontWeight: 800, color: hasReports ? 'var(--cand-red)' : 'var(--text-muted)' }}>
-                            {item.report_count}
+                          <span style={{ fontSize: '1.25rem', fontWeight: 800, color: hasReports ? 'var(--cand-red)' : 'var(--text-muted)' }}>
+                            {item.image_count}
                           </span>
                           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            báo cáo {meta.totalReports > 0 && `(${item.reportPercentage || Math.round((item.report_count / meta.totalReports) * 100)}%)`}
+                            trường hợp {meta.totalImages > 0 && `(${item.percentage}%)`}
                           </span>
                         </div>
                         
-                        {/* Progress Bar (Theo tỷ lệ ảnh đã nộp) */}
+                        {/* Progress Bar (Theo tỷ lệ trường hợp hoàn thành) */}
                         <div 
                           style={{ 
                             height: '6px', 
@@ -850,26 +849,6 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                             }}
                           />
                         </div>
-                      </td>
-
-                      {/* Image Count */}
-                      <td style={{ padding: '0.85rem 0.75rem', textAlign: 'center' }}>
-                        <span 
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            padding: '0.2rem 0.5rem',
-                            borderRadius: 'var(--radius-sm)',
-                            background: item.image_count > 0 ? 'rgba(21, 128, 61, 0.12)' : 'var(--bg-main)',
-                            color: item.image_count > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)',
-                            fontWeight: 600,
-                            fontSize: '0.85rem'
-                          }}
-                        >
-                          <ImageIcon size={13} />
-                          {item.image_count}
-                        </span>
                       </td>
 
                       {/* Category Breakdown Chips */}
