@@ -20,7 +20,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  Database,
+  UploadCloud,
+  AlertTriangle
 } from 'lucide-react';
 import Lightbox from '../components/Lightbox';
 import CskvRankingPage from './CskvRankingPage';
@@ -99,6 +102,13 @@ export default function AdminDashboardPage({ onShowToast }) {
   const [editRegionName, setEditRegionName] = useState('');
   const [isSavingRegion, setIsSavingRegion] = useState(false);
 
+  // Database Backup / Restore Modal State
+  const [showDbModal, setShowDbModal] = useState(false);
+  const [restoreFile, setRestoreFile] = useState(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [isDownloadingBackup, setIsDownloadingBackup] = useState(false);
+  const [dbModalPin, setDbModalPin] = useState(() => sessionStorage.getItem('ck_admin_pin') || '');
+
   // Lightbox State
   const [activeLightboxImg, setActiveLightboxImg] = useState(null);
   const [lightboxImagesList, setLightboxImagesList] = useState([]);
@@ -135,6 +145,8 @@ export default function AdminDashboardPage({ onShowToast }) {
       if (data.success) {
         setIsAuthenticated(true);
         sessionStorage.setItem('ck_admin_auth', 'true');
+        sessionStorage.setItem('ck_admin_pin', pinInput);
+        setDbModalPin(pinInput);
         onShowToast('success', 'Đăng nhập trang Quản Trị thành công.');
       } else {
         setPinError(data.message || 'Mã PIN không đúng.');
@@ -147,6 +159,90 @@ export default function AdminDashboardPage({ onShowToast }) {
   const handleLogout = () => {
     setIsAuthenticated(false);
     sessionStorage.removeItem('ck_admin_auth');
+    sessionStorage.removeItem('ck_admin_pin');
+  };
+
+  // Download Database Backup (.db)
+  const handleDownloadBackup = async () => {
+    const pin = dbModalPin || sessionStorage.getItem('ck_admin_pin') || pinInput;
+    if (!pin) {
+      onShowToast('warning', 'Vui lòng nhập Mã PIN quản trị để tải bản sao lưu.');
+      return;
+    }
+    setIsDownloadingBackup(true);
+    try {
+      const res = await fetch(`/api/admin/backup-db?pin=${encodeURIComponent(pin)}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Lỗi khi tải bản sao lưu.');
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get('content-disposition');
+      let filename = `ck_reports_backup_${new Date().toLocaleDateString('en-CA')}.db`;
+      if (disposition && disposition.includes('filename=')) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      onShowToast('success', `Đã tải về bản sao lưu CSDL: ${filename}`);
+    } catch (err) {
+      onShowToast('error', err.message || 'Không thể tải bản sao lưu.');
+    } finally {
+      setIsDownloadingBackup(false);
+    }
+  };
+
+  // Restore Database (.db)
+  const handleRestoreDatabase = async (e) => {
+    e.preventDefault();
+    const pin = dbModalPin || sessionStorage.getItem('ck_admin_pin') || pinInput;
+    if (!pin) {
+      onShowToast('warning', 'Vui lòng nhập Mã PIN quản trị để khôi phục.');
+      return;
+    }
+    if (!restoreFile) {
+      onShowToast('warning', 'Vui lòng chọn file .db để khôi phục.');
+      return;
+    }
+
+    const confirm = window.confirm(
+      'CẢNH BÁO NGUY HIỂM:\nThao tác này sẽ ghi đè toàn bộ dữ liệu CSDL hiện tại trên server bằng file bạn chọn.\nBạn có chắc chắn muốn tiến hành khôi phục không?'
+    );
+    if (!confirm) return;
+
+    setIsRestoring(true);
+    try {
+      const formData = new FormData();
+      formData.append('db_file', restoreFile);
+      formData.append('pin', pin);
+
+      const res = await fetch('/api/admin/restore-db', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        onShowToast('success', data.message || 'Khôi phục cơ sở dữ liệu thành công!');
+        setRestoreFile(null);
+        setShowDbModal(false);
+        // Reload all reports and stats
+        await loadInitialData();
+      } else {
+        onShowToast('error', data.message || 'Lỗi khi khôi phục cơ sở dữ liệu.');
+      }
+    } catch (err) {
+      onShowToast('error', 'Lỗi kết nối máy chủ khi khôi phục.');
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   const fetchRegions = async () => {
@@ -416,6 +512,16 @@ export default function AdminDashboardPage({ onShowToast }) {
           >
             <Edit3 size={16} />
             <span>Quản Lý CSKV</span>
+          </button>
+
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowDbModal(true)}
+            title="Sao lưu hoặc khôi phục dữ liệu database SQLite (.db)"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Database size={16} color="var(--accent-cyan)" />
+            <span>Sao Lưu / Khôi Phục DB</span>
           </button>
 
           <button
@@ -1078,6 +1184,145 @@ export default function AdminDashboardPage({ onShowToast }) {
             <div className="modal-footer">
               <button className="btn btn-primary" onClick={() => setShowRegionModal(false)}>
                 Hoàn Tất
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Database Backup & Restore Modal */}
+      {showDbModal && (
+        <div className="modal-overlay" onClick={() => !isRestoring && setShowDbModal(false)}>
+          <div className="modal-box" style={{ maxWidth: '640px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <Database size={20} color="var(--accent-cyan)" />
+                <h3 style={{ margin: 0, fontSize: '1.15rem' }}>Sao Lưu & Khôi Phục Cơ Sở Dữ Liệu</h3>
+              </div>
+              <button 
+                className="modal-close-btn" 
+                onClick={() => !isRestoring && setShowDbModal(false)}
+                disabled={isRestoring}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* PIN input if not already saved in session */}
+              {!sessionStorage.getItem('ck_admin_pin') && (
+                <div style={{ padding: '0.85rem 1rem', background: 'rgba(255, 255, 255, 0.04)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.4rem' }}>
+                    Xác thực Mã PIN Quản Trị:
+                  </label>
+                  <input
+                    type="password"
+                    className="form-control"
+                    placeholder="Nhập mã PIN quản trị..."
+                    value={dbModalPin}
+                    onChange={(e) => setDbModalPin(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {/* Section 1: Backup */}
+              <div style={{ padding: '1.1rem', background: 'rgba(6, 182, 212, 0.05)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(6, 182, 212, 0.2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <Download size={18} color="var(--accent-cyan)" />
+                  <strong style={{ color: 'var(--accent-cyan)', fontSize: '0.95rem' }}>1. Sao Lưu (Tải file .db về máy tính)</strong>
+                </div>
+                <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', lineHeight: '1.5', margin: '0 0 0.85rem 0' }}>
+                  Tải toàn bộ dữ liệu hiện tại (báo cáo, danh sách CSKV, lịch sử) về máy tính cá nhân. 
+                  <br />
+                  <span style={{ color: '#f59e0b', fontWeight: 600 }}>💡 Mẹo quan trọng:</span> Hãy bấm tải về <strong>trước mỗi lần deploy commit mới</strong> để không bao giờ bị mất dữ liệu khi server tạo container mới.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleDownloadBackup}
+                  disabled={isDownloadingBackup}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem', fontSize: '0.875rem' }}
+                >
+                  {isDownloadingBackup ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={15} />}
+                  <span>{isDownloadingBackup ? 'Đang tạo bản sao lưu...' : 'Tải File CSDL Về Máy (.db)'}</span>
+                </button>
+              </div>
+
+              {/* Section 2: Restore */}
+              <div style={{ padding: '1.1rem', background: 'rgba(245, 158, 11, 0.05)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <UploadCloud size={18} color="#f59e0b" />
+                  <strong style={{ color: '#f59e0b', fontSize: '0.95rem' }}>2. Khôi Phục (Tải file .db đã lưu lên hệ thống)</strong>
+                </div>
+                <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', lineHeight: '1.5', margin: '0 0 0.85rem 0' }}>
+                  Sau khi deploy code mới lên server (nếu dữ liệu bị trắng), bạn chọn file <code>.db</code> đã sao lưu ở bước 1 để phục hồi lại toàn bộ dữ liệu trước đó ngay tức thì.
+                </p>
+
+                <div style={{ marginBottom: '0.85rem' }}>
+                  <input
+                    type="file"
+                    accept=".db,.sqlite,.sqlite3"
+                    id="db-restore-file-input"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setRestoreFile(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="db-restore-file-input"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      padding: '0.85rem 1rem',
+                      border: '2px dashed rgba(255, 255, 255, 0.2)',
+                      borderRadius: 'var(--radius-md)',
+                      cursor: 'pointer',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      fontSize: '0.85rem',
+                      color: restoreFile ? 'var(--accent-emerald)' : 'var(--text-muted)'
+                    }}
+                  >
+                    <FileArchive size={18} />
+                    <span>
+                      {restoreFile 
+                        ? `Đã chọn: ${restoreFile.name} (${(restoreFile.size / 1024).toFixed(0)} KB)` 
+                        : 'Nhấp vào đây để chọn file sao lưu (.db)'}
+                    </span>
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleRestoreDatabase}
+                  disabled={!restoreFile || isRestoring}
+                  style={{ 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '0.5rem', 
+                    padding: '0.55rem 1rem', 
+                    fontSize: '0.875rem',
+                    background: !restoreFile ? undefined : 'linear-gradient(135deg, #d97706 0%, #b45309 100%)'
+                  }}
+                >
+                  {isRestoring ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <UploadCloud size={15} />}
+                  <span>{isRestoring ? 'Đang khôi phục dữ liệu...' : 'Bắt Đầu Khôi Phục Dữ Liệu'}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => !isRestoring && setShowDbModal(false)}
+                disabled={isRestoring}
+              >
+                Đóng
               </button>
             </div>
           </div>

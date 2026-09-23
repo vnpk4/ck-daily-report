@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
-import db from '../db.js';
-import { upload } from '../storage.js';
+import db, { backupDatabase, restoreDatabase } from '../db.js';
+import { upload, restoreUpload } from '../storage.js';
 import { streamImagesZip, sanitizeName, getCleanExtension } from '../zipService.js';
 import { isCloudinaryConfigured, uploadToCloudinary, deleteFromCloudinary, testCloudinaryConnection } from '../cloudinaryService.js';
 
@@ -578,9 +578,68 @@ router.get('/admin/cloudinary-status', async (req, res) => {
   });
 });
 
+// Backup Database API (Download .db file)
+router.get('/admin/backup-db', (req, res) => {
+  const pin = req.query.pin || req.headers['x-admin-pin'];
+  const currentPin = getAdminPin();
+  if (!pin || String(pin).trim() !== currentPin) {
+    return res.status(401).json({ success: false, message: 'Yêu cầu mã PIN quản trị hợp lệ để sao lưu CSDL.' });
+  }
+
+  try {
+    const dbFile = backupDatabase();
+    if (!fs.existsSync(dbFile)) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy file CSDL.' });
+    }
+    const timestamp = new Intl.DateTimeFormat('en-CA', { 
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false
+    }).format(new Date()).replace(/[/:]/g, '-').replace(', ', '_');
+    const filename = `ck_reports_backup_${timestamp}.db`;
+
+    res.download(dbFile, filename);
+  } catch (err) {
+    console.error('Error backing up database:', err);
+    res.status(500).json({ success: false, message: 'Lỗi khi sao lưu CSDL: ' + err.message });
+  }
+});
+
+// Restore Database API (Upload & apply .db file)
+router.post('/admin/restore-db', restoreUpload.single('db_file'), (req, res) => {
+  const pin = req.body.pin || req.headers['x-admin-pin'];
+  const currentPin = getAdminPin();
+
+  if (!pin || String(pin).trim() !== currentPin) {
+    if (req.file && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    return res.status(401).json({ success: false, message: 'Yêu cầu mã PIN quản trị hợp lệ để khôi phục CSDL.' });
+  }
+
+  if (!req.file || !req.file.path) {
+    return res.status(400).json({ success: false, message: 'Vui lòng đính kèm file .db để khôi phục.' });
+  }
+
+  try {
+    const result = restoreDatabase(req.file.path);
+    if (fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    res.json({ success: true, message: 'Khôi phục cơ sở dữ liệu thành công! Toàn bộ dữ liệu đã được phục hồi.' });
+  } catch (err) {
+    console.error('Error restoring database:', err);
+    if (req.file && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    res.status(400).json({ success: false, message: 'Lỗi khôi phục CSDL: ' + err.message });
+  }
+});
+
 router.get('/stats', (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
     const totalReports = db.prepare('SELECT COUNT(*) as count FROM reports').get().count;
     const totalImages = db.prepare('SELECT COUNT(*) as count FROM report_images').get().count;
     const reportsToday = db.prepare('SELECT COUNT(*) as count FROM reports WHERE report_date = ?').get(today).count;
