@@ -14,8 +14,7 @@ import {
   Send
 } from 'lucide-react';
 
-const MAX_IMAGES = 1;
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_BATCH_SIZE = 13 * 1024 * 1024; // 13MB max total per batch
 
 const DEFAULT_CATEGORIES = [
   'Cài đặt ứng dụng SOS',
@@ -24,12 +23,18 @@ const DEFAULT_CATEGORIES = [
   'Góp ý sửa đổi bộ luật hình sự'
 ];
 
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 export default function GuestUploadPage({ onShowToast }) {
   const [regions, setRegions] = useState([]);
   const [loadingRegions, setLoadingRegions] = useState(true);
 
   // Form State
-  const [guestName, setGuestName] = useState(() => localStorage.getItem('ck_guest_name') || '');
   const [selectedRegionId, setSelectedRegionId] = useState('');
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [selectedCategory, setSelectedCategory] = useState(DEFAULT_CATEGORIES[0]);
@@ -47,11 +52,12 @@ export default function GuestUploadPage({ onShowToast }) {
   const [isDragging, setIsDragging] = useState(false);
 
   // Validation helpers
-  const isNameValid = guestName.trim().length >= 2;
+  const totalBytes = selectedFiles.reduce((acc, curr) => acc + curr.size, 0);
   const isRegionValid = Boolean(selectedRegionId);
   const isCategoryValid = Boolean(selectedCategory);
   const hasImages = selectedFiles.length > 0;
-  const isFormValid = isNameValid && isRegionValid && isCategoryValid && hasImages;
+  const isSizeValid = totalBytes > 0 && totalBytes <= MAX_BATCH_SIZE;
+  const isFormValid = isRegionValid && isCategoryValid && hasImages && isSizeValid;
 
   // Load Regions & Categories
   useEffect(() => {
@@ -91,47 +97,64 @@ export default function GuestUploadPage({ onShowToast }) {
     }
   };
 
-  // Handle files selection (strictly 1 image per submission)
+  // Handle files selection (unlimited count, total size <= 13MB)
   const handleFiles = (incomingFiles) => {
     if (!incomingFiles || incomingFiles.length === 0) return;
 
     const fileList = Array.from(incomingFiles);
-    const validFiles = [];
-    let oversizedCount = 0;
+    const validImageFiles = [];
+    let notImageCount = 0;
 
     for (const file of fileList) {
       if (!file.type.startsWith('image/')) {
+        notImageCount++;
         continue;
       }
-
-      if (file.size > MAX_IMAGE_SIZE) {
-        oversizedCount++;
-        continue;
-      }
-
-      validFiles.push({
-        id: `${file.name}-${Date.now()}-${Math.random()}`,
-        file,
-        previewUrl: URL.createObjectURL(file),
-        size: file.size
-      });
+      validImageFiles.push(file);
     }
 
-    if (oversizedCount > 0) {
-      onShowToast('error', 'Ảnh vượt quá dung lượng tối đa 10MB và đã bị bỏ qua.');
+    if (notImageCount > 0) {
+      onShowToast('warning', `${notImageCount} tệp không phải ảnh đã bị bỏ qua.`);
     }
 
-    if (validFiles.length === 0) return;
-
-    if (fileList.length > 1) {
-      onShowToast('info', 'Mỗi lần gửi chỉ được đính kèm 1 ảnh. Đã chọn ảnh đầu tiên.');
-    }
+    if (validImageFiles.length === 0) return;
 
     setSelectedFiles((prev) => {
-      // Clean up previous preview URL
-      prev.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-      // Keep only 1 image
-      return [validFiles[0]];
+      let currentBytes = prev.reduce((sum, item) => sum + item.size, 0);
+      const newItems = [];
+      let oversized = false;
+
+      for (const file of validImageFiles) {
+        // Avoid exact duplicates
+        const isDuplicate = prev.some(
+          (p) => p.file.name === file.name && p.file.size === file.size && p.file.lastModified === file.lastModified
+        ) || newItems.some(
+          (n) => n.file.name === file.name && n.file.size === file.size && n.file.lastModified === file.lastModified
+        );
+
+        if (isDuplicate) continue;
+
+        if (currentBytes + file.size > MAX_BATCH_SIZE) {
+          oversized = true;
+          continue;
+        }
+
+        currentBytes += file.size;
+        newItems.push({
+          id: `${file.name}-${file.lastModified || Date.now()}-${Math.random()}`,
+          file,
+          previewUrl: URL.createObjectURL(file),
+          size: file.size
+        });
+      }
+
+      if (oversized) {
+        onShowToast('warning', 'Tổng dung lượng các ảnh vượt quá giới hạn 13MB. Những ảnh vượt mức đã được bỏ qua.');
+      } else if (newItems.length > 0) {
+        onShowToast('success', `Đã thêm ${newItems.length} ảnh (${formatFileSize(newItems.reduce((s, i) => s + i.size, 0))}).`);
+      }
+
+      return [...prev, ...newItems];
     });
   };
 
@@ -140,6 +163,13 @@ export default function GuestUploadPage({ onShowToast }) {
       const target = prev.find((item) => item.id === id);
       if (target) URL.revokeObjectURL(target.previewUrl);
       return prev.filter((item) => item.id !== id);
+    });
+  };
+
+  const removeAllFiles = () => {
+    setSelectedFiles((prev) => {
+      prev.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      return [];
     });
   };
 
@@ -169,11 +199,6 @@ export default function GuestUploadPage({ onShowToast }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!guestName.trim() || guestName.trim().length < 2) {
-      onShowToast('error', 'Vui lòng nhập đầy đủ Họ và tên của bạn (tối thiểu 2 ký tự).');
-      return;
-    }
-
     if (!selectedRegionId) {
       onShowToast('error', 'Vui lòng chọn Khu vực / CSKV tiếp nhận.');
       return;
@@ -190,23 +215,19 @@ export default function GuestUploadPage({ onShowToast }) {
     }
 
     if (selectedFiles.length === 0) {
-      onShowToast('error', 'Ràng buộc bắt buộc: Bạn phải chọn hoặc chụp 1 hình ảnh trước khi gửi!');
+      onShowToast('error', 'Ràng buộc bắt buộc: Bạn phải chọn hoặc chụp ít nhất 1 hình ảnh trước khi gửi!');
       return;
     }
 
-    if (selectedFiles.length > MAX_IMAGES) {
-      onShowToast('error', `Mỗi lần gửi chỉ được đính kèm tối đa ${MAX_IMAGES} hình ảnh.`);
+    if (totalBytes > MAX_BATCH_SIZE) {
+      onShowToast('error', 'Tổng dung lượng các ảnh vượt quá giới hạn 13MB. Vui lòng xóa bớt ảnh trước khi gửi!');
       return;
     }
-
-    // Save guest name for convenience
-    localStorage.setItem('ck_guest_name', guestName.trim());
 
     setIsSubmitting(true);
     setUploadProgress(20);
 
     const formData = new FormData();
-    formData.append('guest_name', guestName.trim());
     formData.append('region_id', selectedRegionId);
     formData.append('category', selectedCategory);
     formData.append('report_date', reportDate);
@@ -251,15 +272,6 @@ export default function GuestUploadPage({ onShowToast }) {
       setIsSubmitting(false);
     }
   };
-
-  const formatFileSize = (bytes) => {
-    if (bytes < 1024 * 1024) {
-      return `${(bytes / 1024).toFixed(0)} KB`;
-    }
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const totalBytes = selectedFiles.reduce((acc, curr) => acc + curr.size, 0);
 
   // Success view
   if (submittedData) {
@@ -309,10 +321,6 @@ export default function GuestUploadPage({ onShowToast }) {
               <strong style={{ color: 'var(--primary)' }}>#{submittedData.reportId}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-secondary)' }}>Người gửi:</span>
-              <strong style={{ color: 'var(--text-primary)' }}>{submittedData.guestName}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--text-secondary)' }}>Cảnh sát khu vực:</span>
               <span className="badge badge-cyan">{submittedData.regionName}</span>
             </div>
@@ -352,29 +360,13 @@ export default function GuestUploadPage({ onShowToast }) {
       </div>
 
       <form onSubmit={handleSubmit} className="glass-card">
-        {/* Row 1: Name and Region */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
-          {/* Guest Name */}
-          <div className="form-group">
-            <label className="form-label">
-              <User size={14} style={{ display: 'inline', marginRight: '6px' }} />
-              Họ và Tên của bạn <span className="required">*</span>
-            </label>
-            <input
-              type="text"
-              className="form-control"
-              placeholder="VD: Nguyễn Văn An"
-              value={guestName}
-              onChange={(e) => setGuestName(e.target.value)}
-              required
-            />
-          </div>
-
+        {/* Officer Form Controls: Region, Category, Report Date */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
           {/* Region Select */}
           <div className="form-group">
             <label className="form-label">
               <MapPin size={14} style={{ display: 'inline', marginRight: '6px' }} />
-              Cảnh Sát Khu Vực <span className="required">*</span>
+              Cảnh Sát Khu Vực / CSKV <span className="required">*</span>
             </label>
             <select
               className="form-control"
@@ -390,15 +382,12 @@ export default function GuestUploadPage({ onShowToast }) {
               ))}
             </select>
           </div>
-        </div>
 
-        {/* Row 2: Category and Date */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
           {/* Feedback Category */}
           <div className="form-group">
             <label className="form-label">
               <Tag size={14} style={{ display: 'inline', marginRight: '6px' }} />
-              Mục Nội Dung Góp Ý <span className="required">*</span>
+              Mục Nội Dung Báo Cáo <span className="required">*</span>
             </label>
             <select
               className="form-control"
@@ -432,13 +421,14 @@ export default function GuestUploadPage({ onShowToast }) {
 
         {/* Upload Dropzone */}
         <div className="form-group" style={{ marginTop: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <label className="form-label" style={{ margin: 0 }}>
               <ImageIcon size={14} style={{ display: 'inline', marginRight: '6px' }} />
               Hình Ảnh Đính Kèm <span className="required">*</span>
             </label>
-            <span style={{ fontSize: '0.8rem', color: selectedFiles.length >= MAX_IMAGES ? 'var(--accent-rose)' : 'var(--text-muted)' }}>
-              Đã chọn: <strong>{selectedFiles.length}</strong> / {MAX_IMAGES} ảnh {totalBytes > 0 && `(${formatFileSize(totalBytes)})`}
+            <span style={{ fontSize: '0.8rem', color: totalBytes > MAX_BATCH_SIZE ? 'var(--accent-rose)' : 'var(--text-muted)' }}>
+              Đã chọn: <strong style={{ color: selectedFiles.length > 0 ? 'var(--accent-emerald)' : 'inherit' }}>{selectedFiles.length}</strong> ảnh
+              {selectedFiles.length > 0 && ` (${formatFileSize(totalBytes)} / 13 MB)`}
             </span>
           </div>
 
@@ -452,9 +442,9 @@ export default function GuestUploadPage({ onShowToast }) {
             <div className="dropzone-icon">
               <UploadCloud size={28} />
             </div>
-            <div className="dropzone-title">Kéo & Thả ảnh vào đây hoặc nhấp để tải ảnh lên</div>
+            <div className="dropzone-title">Kéo & Thả ảnh vào đây hoặc nhấp để chọn ảnh</div>
             <div className="dropzone-subtitle">
-              Hỗ trợ JPG, PNG, WEBP, ảnh chụp màn hình (Tối đa 1 ảnh, dung lượng ≤ 10MB)
+              Không giới hạn số lượng ảnh (Hỗ trợ JPG, PNG, WEBP — Tổng dung lượng tối đa 13MB)
             </div>
 
             {/* Quick Actions inside Dropzone */}
@@ -493,6 +483,7 @@ export default function GuestUploadPage({ onShowToast }) {
               type="file"
               ref={fileInputRef}
               accept="image/*"
+              multiple
               style={{ display: 'none' }}
               onChange={(e) => {
                 handleFiles(e.target.files);
@@ -513,42 +504,150 @@ export default function GuestUploadPage({ onShowToast }) {
           </div>
         </div>
 
-        {/* Selected Image Info (No thumbnail to avoid heavy loading) */}
+        {/* Selected Images List */}
         {selectedFiles.length > 0 && (
-          <div style={{ 
-            marginTop: '1.25rem', 
-            padding: '0.75rem 1rem', 
-            background: 'rgba(255, 255, 255, 0.04)', 
-            borderRadius: 'var(--radius-md)', 
-            border: '1px solid var(--border-subtle)', 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '0.5rem'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-              <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>✓ Đã chọn ảnh:</span>
-              <strong style={{ color: 'var(--text-primary)', wordBreak: 'break-all' }}>{selectedFiles[0]?.file?.name}</strong>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({formatFileSize(selectedFiles[0]?.size)})</span>
+          <div
+            style={{
+              marginTop: '1.25rem',
+              padding: '1rem',
+              background: 'rgba(255, 255, 255, 0.03)',
+              borderRadius: 'var(--radius-md)',
+              border: `1px solid ${totalBytes > MAX_BATCH_SIZE ? 'var(--accent-rose)' : 'var(--border-subtle)'}`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ color: 'var(--accent-emerald)', fontWeight: 600, fontSize: '0.9rem' }}>
+                  ✓ Đã chọn {selectedFiles.length} ảnh:
+                </span>
+                <span style={{ fontSize: '0.8rem', color: totalBytes > MAX_BATCH_SIZE ? 'var(--accent-rose)' : 'var(--text-muted)' }}>
+                  {formatFileSize(totalBytes)} / 13 MB
+                </span>
+              </div>
+              <button
+                type="button"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--accent-rose)',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  padding: '0.2rem 0.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+                onClick={removeAllFiles}
+              >
+                <X size={14} />
+                <span>Xóa tất cả</span>
+              </button>
             </div>
-            <button
-              type="button"
+
+            {/* Quota Progress Bar */}
+            <div style={{ width: '100%', height: '4px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '2px', overflow: 'hidden' }}>
+              <div
+                style={{
+                  height: '100%',
+                  width: `${Math.min(100, (totalBytes / MAX_BATCH_SIZE) * 100)}%`,
+                  background: totalBytes > MAX_BATCH_SIZE
+                    ? 'var(--accent-rose)'
+                    : totalBytes > MAX_BATCH_SIZE * 0.85
+                    ? '#f59e0b'
+                    : 'var(--accent-emerald)',
+                  transition: 'width 0.3s ease, background 0.3s ease'
+                }}
+              />
+            </div>
+
+            {totalBytes > MAX_BATCH_SIZE && (
+              <p style={{ color: 'var(--accent-rose)', fontSize: '0.8rem', margin: 0 }}>
+                ⚠️ Tổng dung lượng đã vượt quá giới hạn 13MB. Vui lòng bấm dấu (✕) để xóa bớt một số ảnh trước khi gửi.
+              </p>
+            )}
+
+            {/* Images Grid */}
+            <div
               style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--accent-rose)',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                padding: '0.2rem 0.5rem'
-              }}
-              onClick={() => {
-                selectedFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl));
-                setSelectedFiles([]);
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: '0.5rem',
+                maxHeight: '260px',
+                overflowY: 'auto',
+                paddingRight: '4px'
               }}
             >
-              Xóa ảnh
-            </button>
+              {selectedFiles.map((item) => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.4rem 0.6rem',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.825rem'
+                  }}
+                >
+                  <img
+                    src={item.previewUrl}
+                    alt={item.file.name}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      objectFit: 'cover',
+                      borderRadius: '4px',
+                      flexShrink: 0
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.8rem'
+                      }}
+                      title={item.file.name}
+                    >
+                      {item.file.name}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      {formatFileSize(item.size)}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFile(item.id);
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '4px'
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-rose)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                    title="Xóa ảnh này"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -577,9 +676,11 @@ export default function GuestUploadPage({ onShowToast }) {
                 <span>
                   {!hasImages 
                     ? 'Vui lòng đính kèm ít nhất 1 ảnh để gửi' 
-                    : !isNameValid 
-                    ? 'Vui lòng nhập Họ và tên' 
-                    : `Gửi Góp Ý Báo Cáo (${selectedFiles.length} Ảnh)`
+                    : !selectedRegionId
+                    ? 'Vui lòng chọn Cảnh Sát Khu Vực' 
+                    : totalBytes > MAX_BATCH_SIZE
+                    ? 'Tổng dung lượng vượt quá 13MB'
+                    : `Gửi Báo Cáo (${selectedFiles.length} Ảnh${totalBytes > 0 ? ` - ${formatFileSize(totalBytes)}` : ''})`
                   }
                 </span>
               </>

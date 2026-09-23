@@ -60,14 +60,9 @@ export default function Lightbox({ image, images = [], onClose, onSelectImage })
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ color: '#fff', fontSize: '0.9rem' }}>
-          {image.guest_name && (
-            <span style={{ color: '#f59e0b', fontWeight: 700, marginRight: '0.5rem' }}>
-              {image.guest_name}
-            </span>
-          )}
           {image.region_name && (
-            <span style={{ background: 'rgba(255,255,255,0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', marginRight: '0.5rem' }}>
-              {image.region_name}
+            <span style={{ color: '#38bdf8', fontWeight: 700, marginRight: '0.65rem' }}>
+              📍 {image.region_name}
             </span>
           )}
           <strong>{image.original_name}</strong>

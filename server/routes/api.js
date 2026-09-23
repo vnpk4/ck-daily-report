@@ -108,21 +108,22 @@ router.put('/admin/regions/:id', (req, res) => {
 // -------------------------------------------------------------
 // 2. Submit Report API (Guest)
 // Rate limited: max 6 submissions per minute per IP
-// Image limit: max 1 image per submission
+// Image limit: unlimited images, total <= 13MB per submission
 // -------------------------------------------------------------
 router.post('/reports', guestReportLimiter, (req, res) => {
-  upload.array('images', 1)(req, res, async (err) => {
+  upload.array('images')(req, res, async (err) => {
     if (err) {
+      if (req.files && Array.isArray(req.files)) {
+        req.files.forEach(f => {
+          if (f.path && fs.existsSync(f.path)) {
+            try { fs.unlinkSync(f.path); } catch (e) {}
+          }
+        });
+      }
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({ 
           success: false, 
-          message: 'Dung lượng ảnh vượt quá giới hạn 10MB. Vui lòng chọn ảnh nhỏ hơn.' 
-        });
-      }
-      if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Mỗi lần gửi chỉ được đính kèm tối đa 1 hình ảnh.' 
+          message: 'Dung lượng ảnh vượt quá giới hạn 13MB. Vui lòng chọn ảnh nhỏ hơn.' 
         });
       }
       return res.status(400).json({ success: false, message: err.message || 'Lỗi tải ảnh lên.' });
@@ -130,13 +131,6 @@ router.post('/reports', guestReportLimiter, (req, res) => {
 
     try {
       const { guest_name, region_id, category, report_date, note } = req.body;
-
-      if (!guest_name || !guest_name.trim() || guest_name.trim().length < 2) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Vui lòng nhập đầy đủ Họ và tên của bạn (tối thiểu 2 ký tự).' 
-        });
-      }
 
       if (!region_id) {
         return res.status(400).json({ 
@@ -151,19 +145,31 @@ router.post('/reports', guestReportLimiter, (req, res) => {
         return res.status(400).json({ success: false, message: 'Khu vực được chọn không hợp lệ trong hệ thống.' });
       }
 
+      const finalGuestName = (guest_name && guest_name.trim())
+        ? guest_name.trim()
+        : (regionCheck.name || 'Cán bộ');
+
       const rawFiles = req.files || [];
       const files = rawFiles.filter(f => f && f.size > 0 && fs.existsSync(f.path));
       if (files.length === 0) {
         return res.status(400).json({ 
           success: false, 
-          message: 'Ràng buộc bắt buộc: Vui lòng đính kèm 1 hình ảnh báo cáo/chứng minh hợp lệ.' 
+          message: 'Ràng buộc bắt buộc: Vui lòng đính kèm ít nhất 1 hình ảnh báo cáo/chứng minh hợp lệ.' 
         });
       }
 
-      if (files.length > 1) {
+      // Check total size across all files: max 13MB per submission
+      const MAX_TOTAL_SIZE = 13 * 1024 * 1024; // 13MB
+      const totalFilesSize = files.reduce((sum, f) => sum + f.size, 0);
+      if (totalFilesSize > MAX_TOTAL_SIZE) {
+        files.forEach(f => {
+          if (f.path && fs.existsSync(f.path)) {
+            try { fs.unlinkSync(f.path); } catch (e) {}
+          }
+        });
         return res.status(400).json({ 
           success: false, 
-          message: 'Mỗi lần gửi chỉ được đính kèm tối đa 1 hình ảnh.' 
+          message: 'Tổng dung lượng các ảnh vượt quá giới hạn 13MB cho mỗi lần gửi.' 
         });
       }
 
@@ -178,7 +184,7 @@ router.post('/reports', guestReportLimiter, (req, res) => {
         INSERT INTO reports (guest_name, region_id, category, report_date, note)
         VALUES (?, ?, ?, ?, ?)
       `);
-      const reportResult = insertReport.run(guest_name.trim(), region_id, selectedCategory, dateStr, note ? note.trim() : '');
+      const reportResult = insertReport.run(finalGuestName, region_id, selectedCategory, dateStr, note ? note.trim() : '');
       const reportId = reportResult.lastInsertRowid;
 
       // Save report images (Cloudinary or local disk)
@@ -229,7 +235,7 @@ router.post('/reports', guestReportLimiter, (req, res) => {
         message: 'Gửi báo cáo hình ảnh thành công!',
         data: {
           reportId,
-          guestName: guest_name.trim(),
+          guestName: finalGuestName,
           regionName: regionCheck.name,
           category: selectedCategory,
           reportDate: dateStr,

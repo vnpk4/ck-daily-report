@@ -804,10 +804,10 @@ export default function AdminDashboardPage({ onShowToast }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
-                        {report.guest_name}
+                      <span style={{ fontWeight: 700, fontSize: '1.15rem', color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <MapPin size={18} style={{ color: 'var(--accent-cyan)' }} />
+                        {report.region_name}
                       </span>
-                      <span className="badge badge-cyan">{report.region_name}</span>
                       {report.category && (
                         <span className="badge badge-primary">{report.category}</span>
                       )}
