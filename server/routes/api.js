@@ -56,7 +56,7 @@ router.get('/categories', (req, res) => {
 // -------------------------------------------------------------
 // 1. Regions APIs
 // -------------------------------------------------------------
-router.get('/regions', (req, res) => {
+router.get('/regions', async (req, res) => {
   try {
     const stmt = db.prepare(`
       SELECT id, name, code, display_order, is_active 
@@ -64,7 +64,7 @@ router.get('/regions', (req, res) => {
       WHERE is_active = 1 
       ORDER BY display_order ASC, id ASC
     `);
-    const regions = stmt.all();
+    const regions = await stmt.all();
     res.json({ success: true, data: regions });
   } catch (error) {
     console.error('Error fetching regions:', error);
@@ -73,7 +73,7 @@ router.get('/regions', (req, res) => {
 });
 
 // Update region name (Admin)
-router.put('/admin/regions/:id', (req, res) => {
+router.put('/admin/regions/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { name } = req.body;
@@ -86,13 +86,13 @@ router.put('/admin/regions/:id', (req, res) => {
 
     // Check if name already exists for other region
     const checkStmt = db.prepare('SELECT id FROM regions WHERE name = ? AND id != ?');
-    const existing = checkStmt.get(trimmedName, id);
+    const existing = await checkStmt.get(trimmedName, id);
     if (existing) {
       return res.status(400).json({ success: false, message: 'Tên khu vực này đã tồn tại.' });
     }
 
     const updateStmt = db.prepare('UPDATE regions SET name = ? WHERE id = ?');
-    const result = updateStmt.run(trimmedName, id);
+    const result = await updateStmt.run(trimmedName, id);
 
     if (result.changes === 0) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy khu vực.' });
@@ -106,7 +106,7 @@ router.put('/admin/regions/:id', (req, res) => {
 });
 
 // Reset regions to 22 default CSKV officers (Admin)
-router.post('/admin/regions/reset-defaults', (req, res) => {
+router.post('/admin/regions/reset-defaults', async (req, res) => {
   try {
     const pin = req.body?.pin || req.headers['x-admin-pin'];
     const currentPin = getAdminPin();
@@ -114,7 +114,7 @@ router.post('/admin/regions/reset-defaults', (req, res) => {
       return res.status(401).json({ success: false, message: 'Yêu cầu mã PIN quản trị hợp lệ để khôi phục danh sách CSKV.' });
     }
 
-    const updatedRegions = resetDefaultRegions();
+    const updatedRegions = await resetDefaultRegions();
     res.json({
       success: true,
       message: 'Đã khôi phục danh sách 22 cán bộ Cảnh sát khu vực mặc định thành công!',
@@ -161,7 +161,7 @@ router.post('/reports', guestReportLimiter, (req, res) => {
       }
 
       // Check if region exists
-      const regionCheck = db.prepare('SELECT id, name FROM regions WHERE id = ?').get(region_id);
+      const regionCheck = await db.prepare('SELECT id, name FROM regions WHERE id = ?').get(region_id);
       if (!regionCheck) {
         return res.status(400).json({ success: false, message: 'Khu vực được chọn không hợp lệ trong hệ thống.' });
       }
@@ -205,7 +205,7 @@ router.post('/reports', guestReportLimiter, (req, res) => {
         INSERT INTO reports (guest_name, region_id, category, report_date, note)
         VALUES (?, ?, ?, ?, ?)
       `);
-      const reportResult = insertReport.run(finalGuestName, region_id, selectedCategory, dateStr, note ? note.trim() : '');
+      const reportResult = await insertReport.run(finalGuestName, region_id, selectedCategory, dateStr, note ? note.trim() : '');
       const reportId = reportResult.lastInsertRowid;
 
       // Save report images (Cloudinary or local disk)
@@ -218,7 +218,7 @@ router.post('/reports', guestReportLimiter, (req, res) => {
         if (isCloudinaryConfigured) {
           try {
             const cloudRes = await uploadToCloudinary(file.path, dateStr);
-            insertImage.run(
+            await insertImage.run(
               reportId,
               file.originalname,
               cloudRes.public_id,
@@ -229,7 +229,7 @@ router.post('/reports', guestReportLimiter, (req, res) => {
           } catch (cloudErr) {
             console.error('Cloudinary upload error, fallback to local:', cloudErr);
             const relativePath = `${dateStr}/${file.filename}`;
-            insertImage.run(
+            await insertImage.run(
               reportId,
               file.originalname,
               relativePath,
@@ -240,7 +240,7 @@ router.post('/reports', guestReportLimiter, (req, res) => {
           }
         } else {
           const relativePath = `${dateStr}/${file.filename}`;
-          insertImage.run(
+          await insertImage.run(
             reportId,
             file.originalname,
             relativePath,
@@ -273,7 +273,7 @@ router.post('/reports', guestReportLimiter, (req, res) => {
 // -------------------------------------------------------------
 // 3. Admin Reports List & Filter
 // -------------------------------------------------------------
-router.get('/admin/reports', (req, res) => {
+router.get('/admin/reports', async (req, res) => {
   try {
     const { region_id, category, startDate, endDate } = req.query;
 
@@ -318,11 +318,11 @@ router.get('/admin/reports', (req, res) => {
       JOIN regions reg ON r.region_id = reg.id
       LEFT JOIN report_images img ON r.id = img.report_id
       ${whereSql}
-      GROUP BY r.id
+      GROUP BY r.id, reg.name
       ORDER BY r.report_date DESC, r.created_at DESC
     `;
 
-    const reports = db.prepare(sql).all(...params);
+    const reports = await db.prepare(sql).all(...params);
 
     // If reports exist, fetch image thumbnails for each
     const reportIds = reports.map(r => r.id);
@@ -339,13 +339,11 @@ router.get('/admin/reports', (req, res) => {
         WHERE report_id IN (${placeholders})
         ORDER BY id ASC
       `;
-      const allImages = db.prepare(imgSql).all(...reportIds);
+      const allImages = await db.prepare(imgSql).all(...reportIds);
       for (const img of allImages) {
         if (!imagesByReport[img.report_id]) {
           imagesByReport[img.report_id] = [];
         }
-        // Expose public URL for image
-        // Stored on disk under /uploads/report_date/stored_name or similar
         const imgUrl = (img.file_path && (img.file_path.startsWith('http://') || img.file_path.startsWith('https://')))
           ? img.file_path
           : `/uploads/${img.stored_name}`;
@@ -354,7 +352,7 @@ router.get('/admin/reports', (req, res) => {
           id: img.id,
           original_name: img.original_name,
           stored_name: img.stored_name,
-          file_size: img.file_size,
+          file_size: Number(img.file_size || 0),
           mime_type: img.mime_type,
           url: imgUrl
         });
@@ -363,6 +361,7 @@ router.get('/admin/reports', (req, res) => {
 
     const enrichedReports = reports.map(rep => ({
       ...rep,
+      image_count: Number(rep.image_count || 0),
       images: (imagesByReport[rep.id] || []).map(img => ({
         ...img,
         guest_name: rep.guest_name,
@@ -395,7 +394,7 @@ router.delete('/admin/reports/:id', async (req, res) => {
     const { id } = req.params;
 
     // Get all image file paths first
-    const images = db.prepare('SELECT file_path, stored_name FROM report_images WHERE report_id = ?').all(id);
+    const images = await db.prepare('SELECT file_path, stored_name FROM report_images WHERE report_id = ?').all(id);
 
     // Delete physical or cloud files
     for (const img of images) {
@@ -412,7 +411,7 @@ router.delete('/admin/reports/:id', async (req, res) => {
 
     // Delete from database
     const delStmt = db.prepare('DELETE FROM reports WHERE id = ?');
-    const result = delStmt.run(id);
+    const result = await delStmt.run(id);
 
     if (result.changes === 0) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy báo cáo.' });
@@ -428,7 +427,7 @@ router.delete('/admin/reports/:id', async (req, res) => {
 // -------------------------------------------------------------
 // 4. Export ZIP (Pattern B)
 // -------------------------------------------------------------
-router.get('/admin/export-zip', (req, res) => {
+router.get('/admin/export-zip', async (req, res) => {
   try {
     const { region_id, category, startDate, endDate } = req.query;
 
@@ -476,7 +475,7 @@ router.get('/admin/export-zip', (req, res) => {
       ORDER BY reg.display_order ASC, r.report_date ASC, r.id ASC, img.id ASC
     `;
 
-    const images = db.prepare(sql).all(...params);
+    const images = await db.prepare(sql).all(...params);
 
     if (images.length === 0) {
       return res.status(404).json({
@@ -487,7 +486,7 @@ router.get('/admin/export-zip', (req, res) => {
 
     let filenameParts = ['CK_DailyReport'];
     if (region_id && region_id !== 'all') {
-      const reg = db.prepare('SELECT name FROM regions WHERE id = ?').get(region_id);
+      const reg = await db.prepare('SELECT name FROM regions WHERE id = ?').get(region_id);
       if (reg) filenameParts.push(reg.name.replace(/\s+/g, '_'));
     }
     if (category && category !== 'all') {
@@ -520,12 +519,11 @@ router.get('/admin/export-zip', (req, res) => {
 // -------------------------------------------------------------
 // 4b. Download Individual Image with Standardized Clean Filename
 // Format: [Khu_Vuc]_[YYYY-MM-DD]_[Ten_Khach]_[ID].[ext]
-// Completely prevents duplicate generic filenames like image.jpg
 // -------------------------------------------------------------
 router.get('/admin/download-image/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const img = db.prepare(`
+    const img = await db.prepare(`
       SELECT 
         img.id,
         img.original_name,
@@ -599,8 +597,8 @@ router.get('/admin/cloudinary-status', async (req, res) => {
   });
 });
 
-// Backup Database API (Download .db file)
-router.get('/admin/backup-db', (req, res) => {
+// Backup Database API (Download JSON or .db file)
+router.get('/admin/backup-db', async (req, res) => {
   const pin = req.query.pin || req.headers['x-admin-pin'];
   const currentPin = getAdminPin();
   if (!pin || String(pin).trim() !== currentPin) {
@@ -608,18 +606,26 @@ router.get('/admin/backup-db', (req, res) => {
   }
 
   try {
-    const dbFile = backupDatabase();
-    if (!fs.existsSync(dbFile)) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy file CSDL.' });
-    }
+    const backupRes = await backupDatabase();
     const timestamp = new Intl.DateTimeFormat('en-CA', { 
       timeZone: 'Asia/Ho_Chi_Minh',
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', second: '2-digit',
       hour12: false
     }).format(new Date()).replace(/[/:]/g, '-').replace(', ', '_');
-    const filename = `ck_reports_backup_${timestamp}.db`;
 
+    if (backupRes.type === 'postgres_json') {
+      const filename = `ck_reports_backup_supabase_${timestamp}.json`;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+      return res.send(JSON.stringify(backupRes.data, null, 2));
+    }
+
+    const dbFile = backupRes.path;
+    if (!fs.existsSync(dbFile)) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy file CSDL.' });
+    }
+    const filename = `ck_reports_backup_${timestamp}.db`;
     res.download(dbFile, filename);
   } catch (err) {
     console.error('Error backing up database:', err);
@@ -627,8 +633,8 @@ router.get('/admin/backup-db', (req, res) => {
   }
 });
 
-// Restore Database API (Upload & apply .db file)
-router.post('/admin/restore-db', restoreUpload.single('db_file'), (req, res) => {
+// Restore Database API (Upload & apply file)
+router.post('/admin/restore-db', restoreUpload.single('db_file'), async (req, res) => {
   const pin = req.body.pin || req.headers['x-admin-pin'];
   const currentPin = getAdminPin();
 
@@ -639,12 +645,22 @@ router.post('/admin/restore-db', restoreUpload.single('db_file'), (req, res) => 
     return res.status(401).json({ success: false, message: 'Yêu cầu mã PIN quản trị hợp lệ để khôi phục CSDL.' });
   }
 
+  if (db.isPostgres) {
+    if (req.file && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Hệ thống đang kết nối cơ sở dữ liệu Supabase PostgreSQL trên đám mây. Dữ liệu đã được lưu trữ vĩnh viễn và sao lưu tự động.' 
+    });
+  }
+
   if (!req.file || !req.file.path) {
     return res.status(400).json({ success: false, message: 'Vui lòng đính kèm file .db để khôi phục.' });
   }
 
   try {
-    const result = restoreDatabase(req.file.path);
+    const result = await restoreDatabase(req.file.path);
     if (fs.existsSync(req.file.path)) {
       try { fs.unlinkSync(req.file.path); } catch (e) {}
     }
@@ -658,29 +674,32 @@ router.post('/admin/restore-db', restoreUpload.single('db_file'), (req, res) => 
   }
 });
 
-router.get('/stats', (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-    const totalReports = db.prepare('SELECT COUNT(*) as count FROM reports').get().count;
-    const totalImages = db.prepare('SELECT COUNT(*) as count FROM report_images').get().count;
-    const reportsToday = db.prepare('SELECT COUNT(*) as count FROM reports WHERE report_date = ?').get(today).count;
-    const imagesToday = db.prepare(`
+    const totalReportsRes = await db.prepare('SELECT COUNT(*) as count FROM reports').get();
+    const totalImagesRes = await db.prepare('SELECT COUNT(*) as count FROM report_images').get();
+    const reportsTodayRes = await db.prepare('SELECT COUNT(*) as count FROM reports WHERE report_date = ?').get(today);
+    const imagesTodayRes = await db.prepare(`
       SELECT COUNT(img.id) as count 
       FROM report_images img
       JOIN reports r ON img.report_id = r.id
       WHERE r.report_date = ?
-    `).get(today).count;
+    `).get(today);
 
     res.json({
       success: true,
       data: {
-        totalReports,
-        totalImages,
-        reportsToday,
-        imagesToday,
+        totalReports: Number(totalReportsRes?.count || 0),
+        totalImages: Number(totalImagesRes?.count || 0),
+        reportsToday: Number(reportsTodayRes?.count || 0),
+        imagesToday: Number(imagesTodayRes?.count || 0),
         cloudinary: {
           configured: isCloudinaryConfigured,
           cloudName: process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUD_NAME || ''
+        },
+        database: {
+          type: db.isPostgres ? 'Supabase PostgreSQL' : 'SQLite Local'
         }
       }
     });
@@ -693,7 +712,7 @@ router.get('/stats', (req, res) => {
 // -------------------------------------------------------------
 // 6. CSKV Leaderboard / Rankings API (Theo ngày, tháng, năm)
 // -------------------------------------------------------------
-const getCskvRankings = (req, res) => {
+const getCskvRankings = async (req, res) => {
   try {
     const { timeRange = 'all', date, month, year, startDate, endDate } = req.query;
 
@@ -740,11 +759,11 @@ const getCskvRankings = (req, res) => {
       LEFT JOIN reports r ON reg.id = r.region_id ${dateWhere}
       LEFT JOIN report_images img ON r.id = img.report_id
       WHERE reg.is_active = 1
-      GROUP BY reg.id
+      GROUP BY reg.id, reg.name, reg.code, reg.display_order
       ORDER BY image_count DESC, report_count DESC, reg.display_order ASC
     `;
 
-    const rankings = db.prepare(sql).all(...params);
+    const rawRankings = await db.prepare(sql).all(...params);
 
     // 2. Category breakdowns per region (Calculated by number of uploaded images per category)
     const catSql = `
@@ -757,12 +776,18 @@ const getCskvRankings = (req, res) => {
       WHERE 1=1 ${dateWhere}
       GROUP BY r.region_id, r.category
     `;
-    const catRows = db.prepare(catSql).all(...params);
+    const catRows = await db.prepare(catSql).all(...params);
     const catMap = {};
     for (const row of catRows) {
       if (!catMap[row.region_id]) catMap[row.region_id] = {};
-      catMap[row.region_id][row.category] = row.count;
+      catMap[row.region_id][row.category] = Number(row.count || 0);
     }
+
+    const rankings = rawRankings.map(item => ({
+      ...item,
+      report_count: Number(item.report_count || 0),
+      image_count: Number(item.image_count || 0)
+    }));
 
     const totalReports = rankings.reduce((sum, r) => sum + (r.report_count || 0), 0);
     const totalImages = rankings.reduce((sum, r) => sum + (r.image_count || 0), 0);
