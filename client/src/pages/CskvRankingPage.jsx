@@ -142,13 +142,13 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
   // Copy Briefing Summary for Police Meeting / Zalo Group
   const handleCopySummary = () => {
     const timeLabel = getTimeRangeLabel();
-    let text = `📋 BÁO CÁO THI ĐUA CSKV - ${timeLabel.toUpperCase()}\n`;
+    let text = `📋 THỐNG KÊ THI ĐUA CSKV - ${timeLabel.toUpperCase()}\n`;
     text += `Đơn vị: Công An Phường Cầu Kiệu\n`;
-    text += `Tổng số báo cáo hoàn thành: ${meta.totalReports} lượt (${meta.totalImages} ảnh minh chứng)\n`;
+    text += `Tổng số trường hợp hoàn thành: ${meta.totalImages} trường hợp\n`;
     text += `------------------------------------\n`;
 
     if (activeReportsList.length === 0) {
-      text += `Chưa có đơn vị nào phát sinh báo cáo trong thời gian này.\n`;
+      text += `Chưa có đơn vị nào phát sinh trường hợp trong thời gian này.\n`;
     } else {
       activeReportsList.forEach((r, idx) => {
         const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
@@ -201,7 +201,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
               Thi Đua Cơ Sở
             </span>
             <span style={{ fontSize: '0.85rem', color: '#fef3c7', opacity: 0.9 }}>
-              Xếp hạng theo số lượt thực hiện & nộp ảnh minh chứng
+              Xếp hạng theo số lượng trường hợp hoàn thành
             </span>
           </div>
 
@@ -218,7 +218,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
             BẢNG XẾP HẠNG CẢNH SÁT KHU VỰC (CSKV)
           </h1>
           <p style={{ color: '#fef2f2', fontSize: '0.925rem', maxWidth: '750px', lineHeight: 1.5, opacity: 0.95 }}>
-            Mỗi báo cáo được tính hợp lệ khi người dùng điền đầy đủ thông tin kèm hình ảnh minh chứng thực hiện. 
+            Mỗi trường hợp được tính hợp lệ khi có hình ảnh minh chứng thực hiện. 
             Hệ thống tự động sắp xếp theo thứ tự khu vực làm nhiều nhất đến thấp nhất theo ngày và theo tháng.
           </p>
         </div>
@@ -401,73 +401,42 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
         </div>
       </div>
 
-      {/* KPI Stats Overview Cards */}
+      {/* KPI Stats Overview Cards (Chỉ hiển thị Số Trường Hợp và Khu Vực Dẫn Đầu) */}
       <div 
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '1rem',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '1.25rem',
           marginBottom: '2rem'
         }}
       >
-        {/* Total Reports */}
+        {/* Total Cases Completed (Tính theo số ảnh minh chứng) */}
         <div className="glass-card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                Tổng Báo Cáo ({getTimeRangeLabel()})
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Số Trường Hợp ({getTimeRangeLabel()})
               </div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--cand-red)', marginTop: '0.25rem' }}>
-                {meta.totalReports.toLocaleString('vi-VN')}
-              </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                Đầy đủ thông tin & ảnh đính kèm
-              </div>
-            </div>
-            <div 
-              style={{ 
-                width: '42px', 
-                height: '42px', 
-                borderRadius: 'var(--radius-md)', 
-                background: 'rgba(185, 28, 28, 0.1)', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                color: 'var(--cand-red)' 
-              }}
-            >
-              <Send size={20} />
-            </div>
-          </div>
-        </div>
-
-        {/* Total Images */}
-        <div className="glass-card" style={{ padding: '1.25rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                Tổng Ảnh Minh Chứng
-              </div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--accent-emerald)', marginTop: '0.25rem' }}>
+              <div style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--accent-emerald)', marginTop: '0.25rem', lineHeight: '1.1' }}>
                 {meta.totalImages.toLocaleString('vi-VN')}
               </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                Hình ảnh thực hiện nhiệm vụ
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                Tổng số trường hợp hoàn thành đã tải lên
               </div>
             </div>
             <div 
               style={{ 
-                width: '42px', 
-                height: '42px', 
+                width: '44px', 
+                height: '44px', 
                 borderRadius: 'var(--radius-md)', 
-                background: 'rgba(21, 128, 61, 0.1)', 
+                background: 'rgba(21, 128, 61, 0.12)', 
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'center',
                 color: 'var(--accent-emerald)' 
               }}
             >
-              <ImageIcon size={20} />
+              <ImageIcon size={22} />
             </div>
           </div>
         </div>
@@ -476,21 +445,25 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
         <div className="glass-card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                 Khu Vực Dẫn Đầu ({getTimeRangeLabel()})
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: top1 ? 'var(--cand-gold)' : 'var(--text-muted)', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Trophy size={18} />
-                <span>{top1 ? top1.region_name : 'Chưa có báo cáo'}</span>
+              <div style={{ fontSize: '1.45rem', fontWeight: 800, color: top1 ? 'var(--cand-gold)' : 'var(--text-muted)', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem', lineHeight: '1.2' }}>
+                <Trophy size={20} />
+                <span>{top1 ? top1.region_name : 'Chưa có dữ liệu'}</span>
               </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                {top1 ? `${top1.image_count} trường hợp (${top1.percentage}% toàn phường)` : 'Chờ lượt báo cáo đầu tiên'}
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                {top1 ? (
+                  <>
+                    Đang dẫn đầu: <strong style={{ color: 'var(--cand-red)', fontWeight: 700 }}>{top1.image_count}</strong> trường hợp {top1.percentage > 0 && `(${top1.percentage}% toàn phường)`}
+                  </>
+                ) : 'Chờ lượt hoàn thành đầu tiên'}
               </div>
             </div>
             <div 
               style={{ 
-                width: '42px', 
-                height: '42px', 
+                width: '44px', 
+                height: '44px', 
                 borderRadius: 'var(--radius-md)', 
                 background: 'rgba(217, 119, 6, 0.12)', 
                 display: 'flex', 
@@ -499,7 +472,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                 color: 'var(--cand-gold)' 
               }}
             >
-              <Sparkles size={20} />
+              <Sparkles size={22} />
             </div>
           </div>
         </div>
@@ -521,7 +494,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
               BỤC VINH DANH CSKV XUẤT SẮC ({getTimeRangeLabel()})
             </h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-              Top các khu vực hoàn thành nhiều báo cáo và hình ảnh minh chứng nhất
+              Top các khu vực có số trường hợp hoàn thành cao nhất
             </p>
           </div>
 
@@ -694,7 +667,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
           >
             <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📢</div>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-              Chưa có báo cáo nào được ghi nhận trong {getTimeRangeLabel()}
+              Chưa có trường hợp nào được ghi nhận trong {getTimeRangeLabel()}
             </h3>
             {onNavigateUpload && (
               <button
@@ -703,7 +676,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                 style={{ fontSize: '0.9rem', padding: '0.5rem 1.25rem' }}
                 onClick={onNavigateUpload}
               >
-                <span>+ Gửi Báo Cáo Thực Hiện Đầu Tiên</span>
+                <span>+ Gửi Trường Hợp Thực Hiện Đầu Tiên</span>
               </button>
             )}
           </div>
