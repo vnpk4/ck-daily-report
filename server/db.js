@@ -65,20 +65,76 @@ try {
   // Column already exists, safe to ignore
 }
 
-// Seed 22 default regions if table is empty
-const countStmt = db.prepare('SELECT COUNT(*) as count FROM regions');
-const { count } = countStmt.get();
+// 22 Default CSKV Officer Names in exact order
+export const DEFAULT_CSKV_OFFICERS = [
+  'Trần Hoàng Bảo',
+  'Nguyễn Thành Nên',
+  'Mạch Trung Hiếu',
+  'Trần Quốc Nhân',
+  'Thạch Lai Châu',
+  'Lê Trọng Tâm',
+  'Nguyễn Hoàng Minh',
+  'Nguyễn Trung Nhiệm',
+  'Nguyễn Trần Đãng Nguyên',
+  'Phạm Duy Thức',
+  'Huỳnh Thanh Tấn',
+  'Trần Quốc Nhã',
+  'Cao Quốc Hội',
+  'Nguyễn Trần Khải',
+  'Trần Minh Thuy',
+  'Vô Quang Tiến',
+  'Trần Minh Pho',
+  'Trần Thành Vinh',
+  'Nguyễn Xuân Trường',
+  'Hà Thanh Duy',
+  'Phạm Anh Hưng',
+  'Huỳnh Minh Kha'
+];
 
-if (count === 0) {
+/**
+ * Seed or update regions to default CSKV officers
+ */
+export const resetDefaultRegions = () => {
+  const checkOrder = db.prepare('SELECT id FROM regions WHERE display_order = ?');
+  const updateRegion = db.prepare('UPDATE regions SET name = ? WHERE display_order = ?');
   const insertRegion = db.prepare(`
     INSERT INTO regions (name, code, display_order)
     VALUES (?, ?, ?)
   `);
 
-  for (let i = 1; i <= 22; i++) {
-    insertRegion.run(`Khu vực ${i}`, `KV_${i}`, i);
+  DEFAULT_CSKV_OFFICERS.forEach((name, index) => {
+    const order = index + 1;
+    const existing = checkOrder.get(order);
+    if (existing) {
+      updateRegion.run(name, order);
+    } else {
+      insertRegion.run(name, `KV_${order}`, order);
+    }
+  });
+
+  return db.prepare('SELECT id, name, code, display_order FROM regions ORDER BY display_order ASC').all();
+};
+
+// Seed 22 default CSKV officers if table is empty
+const countStmt = db.prepare('SELECT COUNT(*) as count FROM regions');
+const { count } = countStmt.get();
+
+if (count === 0) {
+  resetDefaultRegions();
+  console.log(`Seeded ${DEFAULT_CSKV_OFFICERS.length} initial CSKV officers`);
+} else {
+  // Check if any regions are still named 'Khu vực %' and auto-migrate them
+  const existingKhuVuc = db.prepare("SELECT id, display_order, name FROM regions WHERE name LIKE 'Khu vực %'").all();
+  if (existingKhuVuc.length > 0) {
+    const updateRegion = db.prepare('UPDATE regions SET name = ? WHERE id = ?');
+    for (const reg of existingKhuVuc) {
+      const idx = reg.display_order - 1;
+      if (idx >= 0 && idx < DEFAULT_CSKV_OFFICERS.length) {
+        updateRegion.run(DEFAULT_CSKV_OFFICERS[idx], reg.id);
+      }
+    }
+    console.log(`Auto-migrated ${existingKhuVuc.length} regions from numbered format to CSKV officer names`);
   }
-  console.log('Seeded 22 initial regions (Khu vực 1 -> Khu vực 22)');
 }
 
 /**

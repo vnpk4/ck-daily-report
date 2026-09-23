@@ -23,7 +23,8 @@ import {
   ChevronsRight,
   Database,
   UploadCloud,
-  AlertTriangle
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react';
 import Lightbox from '../components/Lightbox';
 import CskvRankingPage from './CskvRankingPage';
@@ -101,6 +102,7 @@ export default function AdminDashboardPage({ onShowToast }) {
   const [editingRegion, setEditingRegion] = useState(null);
   const [editRegionName, setEditRegionName] = useState('');
   const [isSavingRegion, setIsSavingRegion] = useState(false);
+  const [isResettingRegions, setIsResettingRegions] = useState(false);
 
   // Database Backup / Restore Modal State
   const [showDbModal, setShowDbModal] = useState(false);
@@ -404,6 +406,36 @@ export default function AdminDashboardPage({ onShowToast }) {
       onShowToast('error', 'Lỗi kết nối máy chủ.');
     } finally {
       setIsSavingRegion(false);
+    }
+  };
+
+  // Reset 22 CSKV Officers to Default
+  const handleResetRegions = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn đặt lại danh sách 22 cán bộ Cảnh sát khu vực về danh sách chuẩn mặc định theo đúng thứ tự?')) {
+      return;
+    }
+    setIsResettingRegions(true);
+    try {
+      const res = await fetch('/api/admin/regions/reset-defaults', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-pin': pin
+        },
+        body: JSON.stringify({ pin })
+      });
+      const data = await res.json();
+      if (data.success) {
+        onShowToast('success', data.message || 'Đã khôi phục 22 CSKV mặc định!');
+        await fetchRegions();
+        await fetchReports();
+      } else {
+        onShowToast('error', data.message || 'Lỗi khi khôi phục danh sách.');
+      }
+    } catch (err) {
+      onShowToast('error', 'Lỗi kết nối máy chủ.');
+    } finally {
+      setIsResettingRegions(false);
     }
   };
 
@@ -1098,7 +1130,7 @@ export default function AdminDashboardPage({ onShowToast }) {
         <div className="modal-overlay" onClick={() => setShowRegionModal(false)}>
           <div className="modal-box" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Đổi tên CSKV nếu có điều chỉnh công tác</h3>
+              <h3>Quản Lý Danh Sách 22 Cảnh Sát Khu Vực</h3>
               <button className="modal-close-btn" onClick={() => setShowRegionModal(false)}>
                 <X size={18} />
               </button>
@@ -1106,7 +1138,7 @@ export default function AdminDashboardPage({ onShowToast }) {
 
             <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-                Bấm nút <strong>Sửa</strong> bên cạnh bất kỳ khu vực nào để cập nhật tên thực tế (ví dụ: đổi thành "Xưởng A - Dây Chuyền 1").
+                Bấm nút <strong>Đổi tên</strong> bên cạnh bất kỳ cán bộ nào để cập nhật nếu có luân chuyển công tác, hoặc bấm nút <strong>Khôi phục mặc định</strong> bên dưới để đưa về 22 đồng chí ban đầu theo đúng thứ tự.
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -1176,7 +1208,18 @@ export default function AdminDashboardPage({ onShowToast }) {
               </div>
             </div>
 
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button 
+                type="button"
+                className="btn btn-secondary" 
+                onClick={handleResetRegions}
+                disabled={isResettingRegions}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)' }}
+                title="Khôi phục về 22 CSKV mặc định theo thứ tự"
+              >
+                <RotateCcw size={15} />
+                <span>{isResettingRegions ? 'Đang khôi phục...' : 'Khôi phục 22 CSKV mặc định'}</span>
+              </button>
               <button className="btn btn-primary" onClick={() => setShowRegionModal(false)}>
                 Hoàn Tất
               </button>

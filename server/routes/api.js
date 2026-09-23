@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
-import db, { backupDatabase, restoreDatabase } from '../db.js';
+import db, { backupDatabase, restoreDatabase, resetDefaultRegions } from '../db.js';
 import { upload, restoreUpload } from '../storage.js';
 import { streamImagesZip, sanitizeName, getCleanExtension } from '../zipService.js';
 import { isCloudinaryConfigured, uploadToCloudinary, deleteFromCloudinary, testCloudinaryConnection } from '../cloudinaryService.js';
@@ -102,6 +102,27 @@ router.put('/admin/regions/:id', (req, res) => {
   } catch (error) {
     console.error('Error updating region:', error);
     res.status(500).json({ success: false, message: 'Lỗi khi cập nhật khu vực.' });
+  }
+});
+
+// Reset regions to 22 default CSKV officers (Admin)
+router.post('/admin/regions/reset-defaults', (req, res) => {
+  try {
+    const pin = req.body?.pin || req.headers['x-admin-pin'];
+    const currentPin = getAdminPin();
+    if (!pin || String(pin).trim() !== currentPin) {
+      return res.status(401).json({ success: false, message: 'Yêu cầu mã PIN quản trị hợp lệ để khôi phục danh sách CSKV.' });
+    }
+
+    const updatedRegions = resetDefaultRegions();
+    res.json({
+      success: true,
+      message: 'Đã khôi phục danh sách 22 cán bộ Cảnh sát khu vực mặc định thành công!',
+      data: updatedRegions
+    });
+  } catch (error) {
+    console.error('Error resetting regions to default:', error);
+    res.status(500).json({ success: false, message: 'Lỗi server khi khôi phục danh sách CSKV mặc định.' });
   }
 });
 
