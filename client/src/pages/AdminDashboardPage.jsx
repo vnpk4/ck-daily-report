@@ -368,7 +368,7 @@ export default function AdminDashboardPage({ onShowToast }) {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="admin-header-actions" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             className="btn btn-secondary"
             onClick={() => setShowRegionModal(true)}

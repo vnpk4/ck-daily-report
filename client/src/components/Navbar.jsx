@@ -29,7 +29,8 @@ export default function Navbar({ currentTab, setCurrentTab }) {
           onClick={() => setCurrentTab('guest')}
         >
           <UploadCloud size={16} />
-          <span>Gửi Ảnh Thực Hiện</span>
+          <span className="nav-text-full">Gửi Ảnh Thực Hiện</span>
+          <span className="nav-text-short">Gửi Ảnh</span>
         </button>
 
         <button
@@ -37,7 +38,8 @@ export default function Navbar({ currentTab, setCurrentTab }) {
           onClick={() => setCurrentTab('admin')}
         >
           <ShieldCheck size={16} />
-          <span>Quản Trị Viên</span>
+          <span className="nav-text-full">Quản Trị Viên</span>
+          <span className="nav-text-short">Quản Trị</span>
         </button>
       </nav>
     </header>

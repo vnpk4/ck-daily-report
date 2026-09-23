@@ -528,6 +528,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
           </div>
 
           <div 
+            className="podium-container"
             style={{ 
               display: 'flex', 
               alignItems: 'flex-end', 
@@ -717,8 +718,8 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
             <div>Đang tải dữ liệu xếp hạng CSKV...</div>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+          <div className="table-responsive-wrapper" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '600px' }}>
               <thead>
                 <tr 
                   style={{ 
