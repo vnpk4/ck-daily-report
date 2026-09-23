@@ -23,20 +23,20 @@ import {
 
 export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdminView = false }) {
   // Current time helpers
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
   
   const yesterdayStr = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
-    return d.toISOString().split('T')[0];
+    return d.toLocaleDateString('en-CA');
   }, []);
 
-  const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), []);
+  const currentMonthStr = useMemo(() => new Date().toLocaleDateString('en-CA').slice(0, 7), []);
 
   const prevMonthStr = useMemo(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 1);
-    return d.toISOString().slice(0, 7);
+    return d.toLocaleDateString('en-CA').slice(0, 7);
   }, []);
 
   // Filter State: Default to 'day' (Hôm nay) or 'month' (Tháng này)

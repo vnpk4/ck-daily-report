@@ -38,7 +38,7 @@ export default function GuestUploadPage({ onShowToast }) {
   const [selectedRegionId, setSelectedRegionId] = useState('');
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [selectedCategory, setSelectedCategory] = useState(DEFAULT_CATEGORIES[0]);
-  const [reportDate, setReportDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [reportDate, setReportDate] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [note, setNote] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]); // array of { file, previewUrl, id, size }
 

@@ -175,7 +175,7 @@ router.post('/reports', guestReportLimiter, (req, res) => {
 
       const dateStr = report_date && /^\d{4}-\d{2}-\d{2}$/.test(report_date)
         ? report_date
-        : new Date().toISOString().split('T')[0];
+        : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
 
       const selectedCategory = (category && category.trim()) ? category.trim() : FEEDBACK_CATEGORIES[0];
 
@@ -291,7 +291,7 @@ router.get('/admin/reports', (req, res) => {
         r.category,
         r.report_date,
         r.note,
-        r.created_at,
+        strftime('%Y-%m-%dT%H:%M:%SZ', r.created_at) as created_at,
         COUNT(img.id) as image_count
       FROM reports r
       JOIN regions reg ON r.region_id = reg.id
@@ -311,7 +311,8 @@ router.get('/admin/reports', (req, res) => {
       // Fetch up to 10 images per report
       const placeholders = reportIds.map(() => '?').join(',');
       const imgSql = `
-        SELECT id, report_id, original_name, stored_name, file_path, file_size, mime_type, created_at,
+        SELECT id, report_id, original_name, stored_name, file_path, file_size, mime_type,
+               strftime('%Y-%m-%dT%H:%M:%SZ', created_at) as created_at,
                strftime('%Y-%m-%d', created_at) as created_date
         FROM report_images 
         WHERE report_id IN (${placeholders})

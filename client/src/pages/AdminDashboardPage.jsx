@@ -32,6 +32,20 @@ const DEFAULT_CATEGORIES = [
   'Góp ý sửa đổi bộ luật hình sự'
 ];
 
+// Helper to safely format report time converting UTC timestamps to local Vietnam time
+const formatReportTime = (timeStr) => {
+  if (!timeStr) return '';
+  let normalized = timeStr;
+  if (!normalized.endsWith('Z') && !normalized.includes('+') && !normalized.includes('T')) {
+    normalized = normalized.replace(' ', 'T') + 'Z';
+  } else if (!normalized.endsWith('Z') && !normalized.includes('+')) {
+    normalized = normalized + 'Z';
+  }
+  const date = new Date(normalized);
+  if (isNaN(date.getTime())) return timeStr;
+  return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+};
+
 export default function AdminDashboardPage({ onShowToast }) {
   // Admin Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -198,7 +212,7 @@ export default function AdminDashboardPage({ onShowToast }) {
   const handleDatePreset = (preset) => {
     setDatePreset(preset);
     const today = new Date();
-    const formatDate = (d) => d.toISOString().split('T')[0];
+    const formatDate = (d) => d.toLocaleDateString('en-CA');
 
     if (preset === 'today') {
       const todayStr = formatDate(today);
@@ -828,7 +842,7 @@ export default function AdminDashboardPage({ onShowToast }) {
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      Gửi lúc: {new Date(report.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                      Gửi lúc: {formatReportTime(report.created_at)}
                     </span>
 
                     <button
