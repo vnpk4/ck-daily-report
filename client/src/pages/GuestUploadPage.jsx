@@ -513,28 +513,42 @@ export default function GuestUploadPage({ onShowToast }) {
           </div>
         </div>
 
-        {/* Selected Images Preview Grid */}
+        {/* Selected Image Info (No thumbnail to avoid heavy loading) */}
         {selectedFiles.length > 0 && (
-          <div style={{ marginTop: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button
-                type="button"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--accent-rose)',
-                  fontSize: '0.8rem',
-                  cursor: 'pointer'
-                }}
-                onClick={() => {
-                  selectedFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl));
-                  setSelectedFiles([]);
-                }}
-              >
-                Xóa tất cả
-              </button>
+          <div style={{ 
+            marginTop: '1.25rem', 
+            padding: '0.75rem 1rem', 
+            background: 'rgba(255, 255, 255, 0.04)', 
+            borderRadius: 'var(--radius-md)', 
+            border: '1px solid var(--border-subtle)', 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '0.5rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+              <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>✓ Đã chọn ảnh:</span>
+              <strong style={{ color: 'var(--text-primary)', wordBreak: 'break-all' }}>{selectedFiles[0]?.file?.name}</strong>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({formatFileSize(selectedFiles[0]?.size)})</span>
             </div>
-
+            <button
+              type="button"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--accent-rose)',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                padding: '0.2rem 0.5rem'
+              }}
+              onClick={() => {
+                selectedFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl));
+                setSelectedFiles([]);
+              }}
+            >
+              Xóa ảnh
+            </button>
           </div>
         )}
 
