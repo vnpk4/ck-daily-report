@@ -545,46 +545,41 @@ export default function AdminDashboardPage({ onShowToast }) {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards (Chỉ hiển thị Tổng trường hợp hệ thống, Hôm nay, và Trong bộ lọc) */}
       {stats && (
         <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary)' }}>
-              <Layers size={22} />
-            </div>
-            <div className="stat-info">
-              <div className="stat-value">{stats.totalReports}</div>
-              <div className="stat-label">Tổng Lượt Báo Cáo</div>
-            </div>
-          </div>
-
+          {/* Card 1: Tổng trường hợp đã ghi nhận trong hệ thống */}
           <div className="stat-card">
             <div className="stat-icon" style={{ background: 'rgba(6, 182, 212, 0.15)', color: 'var(--accent-cyan)' }}>
               <ImageIcon size={22} />
             </div>
             <div className="stat-info">
               <div className="stat-value">{stats.totalImages}</div>
-              <div className="stat-label">Tổng Ảnh Hệ Thống</div>
+              <div className="stat-label">Tổng Trường Hợp Hệ Thống</div>
             </div>
           </div>
 
+          {/* Card 2: Tổng trường hợp trong hôm nay (lấy ngày hiện tại) */}
           <div className="stat-card">
             <div className="stat-icon" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-emerald)' }}>
               <Clock size={22} />
             </div>
             <div className="stat-info">
-              <div className="stat-value">{stats.reportsToday}</div>
-              <div className="stat-label">Báo Cáo Hôm Nay</div>
+              <div className="stat-value">{stats.imagesToday || 0}</div>
+              <div className="stat-label">
+                Hôm Nay ({new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date())})
+              </div>
             </div>
           </div>
 
+          {/* Card 3: Tổng trường hợp trong bộ lọc */}
           <div className="stat-card">
             <div className="stat-icon" style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--accent-amber)' }}>
               <FileArchive size={22} />
             </div>
             <div className="stat-info">
               <div className="stat-value">{meta.totalImages}</div>
-              <div className="stat-label">Ảnh Trong Bộ Lọc</div>
+              <div className="stat-label">Trường Hợp Trong Bộ Lọc</div>
             </div>
           </div>
         </div>
