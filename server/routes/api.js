@@ -706,7 +706,7 @@ const getCskvRankings = (req, res) => {
       }
     }
 
-    // 1. Rankings of regions by report count and image count
+    // 1. Rankings of regions by image count and report count
     const sql = `
       SELECT 
         reg.id as region_id,
@@ -720,18 +720,19 @@ const getCskvRankings = (req, res) => {
       LEFT JOIN report_images img ON r.id = img.report_id
       WHERE reg.is_active = 1
       GROUP BY reg.id
-      ORDER BY report_count DESC, image_count DESC, reg.display_order ASC
+      ORDER BY image_count DESC, report_count DESC, reg.display_order ASC
     `;
 
     const rankings = db.prepare(sql).all(...params);
 
-    // 2. Category breakdowns per region
+    // 2. Category breakdowns per region (Calculated by number of uploaded images per category)
     const catSql = `
       SELECT 
         r.region_id,
         r.category,
-        COUNT(r.id) as count
+        COUNT(img.id) as count
       FROM reports r
+      JOIN report_images img ON r.id = img.report_id
       WHERE 1=1 ${dateWhere}
       GROUP BY r.region_id, r.category
     `;
@@ -745,12 +746,18 @@ const getCskvRankings = (req, res) => {
     const totalReports = rankings.reduce((sum, r) => sum + (r.report_count || 0), 0);
     const totalImages = rankings.reduce((sum, r) => sum + (r.image_count || 0), 0);
 
-    const enrichedRankings = rankings.map((item, idx) => ({
-      ...item,
-      rank: idx + 1,
-      categories: catMap[item.region_id] || {},
-      percentage: totalReports > 0 ? Math.round((item.report_count / totalReports) * 100) : 0
-    }));
+    const enrichedRankings = rankings.map((item, idx) => {
+      const imagePercentage = totalImages > 0 ? Math.round((item.image_count / totalImages) * 100) : 0;
+      const reportPercentage = totalReports > 0 ? Math.round((item.report_count / totalReports) * 100) : 0;
+      return {
+        ...item,
+        rank: idx + 1,
+        categories: catMap[item.region_id] || {},
+        imagePercentage,
+        reportPercentage,
+        percentage: imagePercentage
+      };
+    });
 
     res.json({
       success: true,

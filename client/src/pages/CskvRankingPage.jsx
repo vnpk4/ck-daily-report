@@ -100,23 +100,21 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
       );
     }
 
-    // Mặc định luôn xếp hạng khu vực theo số lượng góp ý từ cao đến thấp
+    // Xếp hạng khu vực theo số lượng ảnh từ cao đến thấp, nếu bằng nhau thì so số lượng báo cáo
     list.sort((a, b) => {
-      if (b.report_count !== a.report_count) {
-        return b.report_count - a.report_count;
-      }
-      if (b.image_count !== a.image_count) {
-        return b.image_count - a.image_count;
-      }
+      const imgDiff = (b.image_count || 0) - (a.image_count || 0);
+      if (imgDiff !== 0) return imgDiff;
+      const repDiff = (b.report_count || 0) - (a.report_count || 0);
+      if (repDiff !== 0) return repDiff;
       return (a.display_order || 0) - (b.display_order || 0);
     });
 
     return list;
   }, [rankings, searchTerm]);
 
-  // Top 3 Podium (Chỉ hiển thị khi có khu vực có số báo cáo > 0)
+  // Top 3 Podium (Chỉ hiển thị khi có khu vực có số ảnh hoặc báo cáo > 0)
   const activeReportsList = useMemo(() => {
-    return rankings.filter((r) => r.report_count > 0);
+    return rankings.filter((r) => (r.image_count || 0) > 0 || (r.report_count || 0) > 0);
   }, [rankings]);
 
   const top1 = activeReportsList.length > 0 ? activeReportsList[0] : null;
@@ -154,7 +152,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
     } else {
       activeReportsList.forEach((r, idx) => {
         const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
-        text += `${medal} ${r.region_name}: ${r.report_count} Trường hợp \n`;
+        text += `${medal} ${r.region_name}: ${r.image_count} Ảnh (${r.report_count} báo cáo)\n`;
       });
     }
 
@@ -486,7 +484,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                 <span>{top1 ? top1.region_name : 'Chưa có báo cáo'}</span>
               </div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                {top1 ? `${top1.report_count} báo cáo (${top1.percentage}% toàn phường)` : 'Chờ lượt báo cáo đầu tiên'}
+                {top1 ? `${top1.image_count} ảnh (${top1.report_count} báo cáo)` : 'Chờ lượt báo cáo đầu tiên'}
               </div>
             </div>
             <div 
@@ -548,7 +546,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                     {top2.region_name}
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                    <strong style={{ color: 'var(--cand-red)' }}>{top2.report_count}</strong> báo cáo ({top2.image_count} ảnh)
+                    <strong style={{ color: 'var(--cand-red)' }}>{top2.image_count}</strong> ảnh ({top2.report_count} báo cáo)
                   </div>
                   <div 
                     style={{
@@ -592,7 +590,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                 <Flame size={18} color="var(--cand-gold)" />
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                <strong style={{ color: 'var(--cand-red)', fontSize: '1rem' }}>{top1.report_count}</strong> báo cáo ({top1.image_count} ảnh)
+                <strong style={{ color: 'var(--cand-red)', fontSize: '1rem' }}>{top1.image_count}</strong> ảnh ({top1.report_count} báo cáo)
               </div>
               <div 
                 style={{
@@ -627,7 +625,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                     {top3.region_name}
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                    <strong style={{ color: 'var(--cand-red)' }}>{top3.report_count}</strong> báo cáo ({top3.image_count} ảnh)
+                    <strong style={{ color: 'var(--cand-red)' }}>{top3.image_count}</strong> ảnh ({top3.report_count} báo cáo)
                   </div>
                   <div 
                     style={{
@@ -741,7 +739,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
               </thead>
               <tbody>
                 {processedRankings.map((item, index) => {
-                  const hasReports = item.report_count > 0;
+                  const hasReports = (item.image_count || 0) > 0 || (item.report_count || 0) > 0;
                   const rankNum = index + 1;
                   const isTop1 = hasReports && rankNum === 1;
                   const isTop2 = hasReports && rankNum === 2;
@@ -826,11 +824,11 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                             {item.report_count}
                           </span>
                           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            báo cáo {meta.totalReports > 0 && `(${item.percentage}%)`}
+                            báo cáo {meta.totalReports > 0 && `(${item.reportPercentage || Math.round((item.report_count / meta.totalReports) * 100)}%)`}
                           </span>
                         </div>
                         
-                        {/* Progress Bar */}
+                        {/* Progress Bar (Theo tỷ lệ ảnh đã nộp) */}
                         <div 
                           style={{ 
                             height: '6px', 
@@ -843,7 +841,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                           <div 
                             style={{ 
                               height: '100%', 
-                              width: `${Math.max(item.percentage, hasReports ? 8 : 0)}%`,
+                              width: `${Math.max(item.percentage, (item.image_count || 0) > 0 ? 8 : 0)}%`,
                               background: isTop1 
                                 ? 'linear-gradient(90deg, #d97706, #f59e0b)' 
                                 : 'linear-gradient(90deg, #b91c1c, #dc2626)',
@@ -890,7 +888,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                                   color: 'var(--text-secondary)'
                                 }}
                               >
-                                {catName}: <strong>{count}</strong>
+                                {catName}: <strong>{count} ảnh</strong>
                               </span>
                             ))}
                           </div>
