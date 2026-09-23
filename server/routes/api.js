@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import db from '../db.js';
 import { upload } from '../storage.js';
-import { streamImagesZip } from '../zipService.js';
+import { streamImagesZip, sanitizeName, getCleanExtension } from '../zipService.js';
 import { isCloudinaryConfigured, uploadToCloudinary, deleteFromCloudinary, testCloudinaryConnection } from '../cloudinaryService.js';
 
 const router = express.Router();
@@ -335,7 +335,13 @@ router.get('/admin/reports', (req, res) => {
 
     const enrichedReports = reports.map(rep => ({
       ...rep,
-      images: imagesByReport[rep.id] || []
+      images: (imagesByReport[rep.id] || []).map(img => ({
+        ...img,
+        guest_name: rep.guest_name,
+        region_name: rep.region_name,
+        report_date: rep.report_date,
+        download_url: `/api/admin/download-image/${img.id}`
+      }))
     }));
 
     // Calculate total images matching filter
@@ -479,6 +485,67 @@ router.get('/admin/export-zip', (req, res) => {
     console.error('Error generating export ZIP:', error);
     if (!res.headersSent) {
       res.status(500).json({ success: false, message: 'Lỗi khi xuất file ZIP.' });
+    }
+  }
+});
+
+// -------------------------------------------------------------
+// 4b. Download Individual Image with Standardized Clean Filename
+// Format: [Khu_Vuc]_[YYYY-MM-DD]_[Ten_Khach]_[ID].[ext]
+// Completely prevents duplicate generic filenames like image.jpg
+// -------------------------------------------------------------
+router.get('/admin/download-image/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const img = db.prepare(`
+      SELECT 
+        img.id,
+        img.original_name,
+        img.stored_name,
+        img.file_path,
+        img.file_size,
+        img.mime_type,
+        r.guest_name,
+        r.report_date,
+        reg.name as region_name
+      FROM report_images img
+      JOIN reports r ON img.report_id = r.id
+      JOIN regions reg ON r.region_id = reg.id
+      WHERE img.id = ?
+    `).get(id);
+
+    if (!img) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy hình ảnh.' });
+    }
+
+    const regionPart = sanitizeName(img.region_name || 'Khu_Vuc');
+    const datePart = img.report_date || 'Ngay';
+    const guestPart = sanitizeName(img.guest_name || 'Nguoi_Dung');
+    const ext = getCleanExtension(img.original_name, img.file_path);
+    const downloadFilename = `${regionPart}_${datePart}_${guestPart}_${img.id}${ext}`;
+
+    // Cloudinary / remote URL
+    if (img.file_path && (img.file_path.startsWith('http://') || img.file_path.startsWith('https://'))) {
+      const response = await fetch(img.file_path);
+      if (!response.ok) {
+        return res.status(502).json({ success: false, message: 'Không thể tải ảnh từ Cloudinary.' });
+      }
+      res.setHeader('Content-Type', img.mime_type || response.headers.get('content-type') || 'image/jpeg');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadFilename)}"`);
+      const arrayBuffer = await response.arrayBuffer();
+      return res.send(Buffer.from(arrayBuffer));
+    }
+
+    // Local file on disk
+    if (img.file_path && fs.existsSync(img.file_path)) {
+      return res.download(img.file_path, downloadFilename);
+    }
+
+    return res.status(404).json({ success: false, message: 'File ảnh không tồn tại trên hệ thống.' });
+  } catch (error) {
+    console.error('Error downloading image:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: 'Lỗi khi tải ảnh.' });
     }
   }
 });

@@ -60,6 +60,16 @@ export default function Lightbox({ image, images = [], onClose, onSelectImage })
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ color: '#fff', fontSize: '0.9rem' }}>
+          {image.guest_name && (
+            <span style={{ color: '#f59e0b', fontWeight: 700, marginRight: '0.5rem' }}>
+              {image.guest_name}
+            </span>
+          )}
+          {image.region_name && (
+            <span style={{ background: 'rgba(255,255,255,0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', marginRight: '0.5rem' }}>
+              {image.region_name}
+            </span>
+          )}
           <strong>{image.original_name}</strong>
           {image.file_size && (
             <span style={{ color: 'var(--text-muted)', marginLeft: '0.75rem' }}>
@@ -99,11 +109,11 @@ export default function Lightbox({ image, images = [], onClose, onSelectImage })
             <RotateCw size={16} />
           </button>
           <a
-            href={image.url}
+            href={image.id ? `/api/admin/download-image/${image.id}` : (image.download_url || image.url)}
             download={image.original_name}
             className="btn btn-secondary"
             style={{ padding: '0.45rem', borderRadius: '50%' }}
-            title="Tải ảnh này về"
+            title="Tải ảnh này về (Tên chuẩn hóa, không trùng lặp)"
           >
             <Download size={16} />
           </a>

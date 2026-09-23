@@ -12,8 +12,28 @@ export function sanitizeName(name) {
 }
 
 /**
+ * Extracts and cleans image extension safely
+ */
+export function getCleanExtension(originalName, filePath) {
+  let ext = '';
+  if (originalName) {
+    ext = path.extname(originalName).split('?')[0].toLowerCase();
+  }
+  if (!ext && filePath) {
+    ext = path.extname(filePath).split('?')[0].toLowerCase();
+  }
+  if (!ext || ext.length > 5 || !/^\.[a-z0-9]+$/i.test(ext)) {
+    ext = '.jpg';
+  }
+  return ext;
+}
+
+/**
  * Creates and streams a ZIP file adhering to Pattern B:
  * [Tên_Khu_Vực] / [YYYY-MM-DD] / [Tên_Khách]_[01..10].[ext]
+ * 
+ * Ensures all files have unique sequential names per guest in each folder,
+ * completely preventing duplicate filenames or overwriting.
  * 
  * @param {Array} images - List of image records with region_name, report_date, guest_name, file_path, original_name
  * @param {Response} res - Express response object for streaming
@@ -32,24 +52,32 @@ export async function streamImagesZip(images, res) {
 
   archive.pipe(res);
 
-  // Track counts per guest submission to generate _01, _02...
+  // Track counts per guest in each region+date folder to generate _01, _02, _03...
   const counterMap = new Map();
+  const usedZipPaths = new Set();
 
   for (const img of images) {
     const regionFolder = sanitizeName(img.region_name || 'Khu_Vuc_Khac');
     const dateFolder = img.report_date || 'Ngay_Khong_Xac_Dinh';
     const guestPrefix = sanitizeName(img.guest_name || 'Nguoi_Dung');
 
-    // Grouping key: reportId
-    const key = `report_${img.report_id}`;
-    const currentIndex = (counterMap.get(key) || 0) + 1;
-    counterMap.set(key, currentIndex);
+    // Grouping key: region + date + guest
+    const guestKey = `${regionFolder}/${dateFolder}/${guestPrefix}`;
+    let currentIndex = counterMap.get(guestKey) || 0;
 
-    const indexPadded = String(currentIndex).padStart(2, '0');
-    const ext = path.extname(img.original_name) || path.extname(img.file_path) || '.jpg';
+    const ext = getCleanExtension(img.original_name, img.file_path);
     
     // Pattern B filename: Khu_Vuc_1/2026-09-23/NguyenVanA_01.jpg
-    const zipInternalPath = `${regionFolder}/${dateFolder}/${guestPrefix}_${indexPadded}${ext}`;
+    // Sequential counter with collision prevention
+    let zipInternalPath;
+    do {
+      currentIndex += 1;
+      const indexPadded = String(currentIndex).padStart(2, '0');
+      zipInternalPath = `${regionFolder}/${dateFolder}/${guestPrefix}_${indexPadded}${ext}`;
+    } while (usedZipPaths.has(zipInternalPath));
+
+    counterMap.set(guestKey, currentIndex);
+    usedZipPaths.add(zipInternalPath);
 
     // Case 1: Remote URL (Cloudinary / Cloud Storage)
     if (img.file_path && (img.file_path.startsWith('http://') || img.file_path.startsWith('https://'))) {

@@ -154,7 +154,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
     } else {
       activeReportsList.forEach((r, idx) => {
         const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
-        text += `${medal} ${r.region_name}: ${r.report_count} báo cáo (${r.image_count} ảnh)\n`;
+        text += `${medal} ${r.region_name}: ${r.report_count} Trường hợp \n`;
       });
     }
 

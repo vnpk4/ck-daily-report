@@ -842,6 +842,51 @@ export default function AdminDashboardPage({ onShowToast }) {
                     </button>
                   </div>
                 </div>
+
+                {/* Images Attachment */}
+                {report.images && report.images.length > 0 && (
+                  <div style={{ marginTop: '0.65rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                    {report.images.map((img, idx) => (
+                      <button
+                        key={img.id}
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          fontSize: '0.825rem',
+                          padding: '0.4rem 0.75rem',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-subtle)',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onClick={() => handleOpenLightbox(img, report.images)}
+                        title="Bấm để xem ảnh chi tiết và tải về"
+                      >
+                        <ImageIcon size={15} style={{ color: 'var(--accent-cyan)' }} />
+                        <span style={{ fontWeight: 500 }}>
+                          Xem ảnh {report.images.length > 1 ? `#${idx + 1}` : ''}
+                        </span>
+                        <span 
+                          style={{ 
+                            fontSize: '0.75rem', 
+                            padding: '0.15rem 0.4rem', 
+                            borderRadius: '4px', 
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            color: 'var(--text-muted)'
+                          }}
+                        >
+                          {formatFileSize(img.file_size)}
+                        </span>
+                        <Eye size={14} style={{ color: 'var(--accent-emerald)', marginLeft: '2px' }} />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
 
