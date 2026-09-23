@@ -517,9 +517,6 @@ export default function GuestUploadPage({ onShowToast }) {
         {selectedFiles.length > 0 && (
           <div style={{ marginTop: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Xem trước hình ảnh ({selectedFiles.length}/{MAX_IMAGES}):
-              </span>
               <button
                 type="button"
                 style={{
@@ -538,22 +535,6 @@ export default function GuestUploadPage({ onShowToast }) {
               </button>
             </div>
 
-            <div className="previews-grid">
-              {selectedFiles.map((item, index) => (
-                <div key={item.id} className="preview-card">
-                  <img src={item.previewUrl} alt={`Preview ${index + 1}`} className="preview-img" />
-                  <span className="preview-badge-size">{formatFileSize(item.size)}</span>
-                  <button
-                    type="button"
-                    className="preview-remove-btn"
-                    title="Xóa ảnh này"
-                    onClick={() => removeFile(item.id)}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
