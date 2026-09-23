@@ -39,11 +39,18 @@ app.get('/api/health', (req, res) => {
 const clientDistDir = path.resolve(__dirname, '../client/dist');
 if (fs.existsSync(clientDistDir)) {
   console.log('Serving production client build from:', clientDistDir);
-  app.use(express.static(clientDistDir));
+  app.use(express.static(clientDistDir, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    }
+  }));
 
   // Client-side routing fallback
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.sendFile(path.join(clientDistDir, 'index.html'));
     } else {
       res.status(404).json({ success: false, message: 'Endpoint API không tồn tại.' });
