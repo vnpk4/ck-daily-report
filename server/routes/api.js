@@ -135,11 +135,12 @@ router.post('/reports', (req, res) => {
         return res.status(400).json({ success: false, message: 'Khu vực được chọn không hợp lệ trong hệ thống.' });
       }
 
-      const files = req.files || [];
-      if (!files || files.length === 0) {
+      const rawFiles = req.files || [];
+      const files = rawFiles.filter(f => f && f.size > 0 && fs.existsSync(f.path));
+      if (files.length === 0) {
         return res.status(400).json({ 
           success: false, 
-          message: 'Ràng buộc bắt buộc: Vui lòng đính kèm ít nhất 1 hình ảnh báo cáo/chứng minh.' 
+          message: 'Ràng buộc bắt buộc: Vui lòng đính kèm ít nhất 1 hình ảnh báo cáo/chứng minh hợp lệ.' 
         });
       }
 

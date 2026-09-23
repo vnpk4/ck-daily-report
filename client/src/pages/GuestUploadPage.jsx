@@ -275,39 +275,40 @@ export default function GuestUploadPage({ onShowToast }) {
 
           <div
             style={{
-              background: 'rgba(15, 23, 42, 0.6)',
-              border: '1px solid var(--border-subtle)',
+              background: '#f8fafc',
+              border: '1.5px solid #e2e8f0',
               borderRadius: 'var(--radius-md)',
               padding: '1.25rem',
               marginBottom: '2rem',
               textAlign: 'left',
               display: 'grid',
               gap: '0.75rem',
-              fontSize: '0.9rem'
+              fontSize: '0.9rem',
+              color: 'var(--text-primary)'
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Mã báo cáo:</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Mã báo cáo:</span>
               <strong style={{ color: 'var(--primary)' }}>#{submittedData.reportId}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Người gửi:</span>
-              <strong>{submittedData.guestName}</strong>
+              <span style={{ color: 'var(--text-secondary)' }}>Người gửi:</span>
+              <strong style={{ color: 'var(--text-primary)' }}>{submittedData.guestName}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Cảnh sát khu vực:</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Cảnh sát khu vực:</span>
               <span className="badge badge-cyan">{submittedData.regionName}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Mục nội dung góp ý:</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Mục nội dung góp ý:</span>
               <span className="badge badge-primary">{submittedData.category}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Ngày báo cáo:</span>
-              <strong>{submittedData.reportDate}</strong>
+              <span style={{ color: 'var(--text-secondary)' }}>Ngày báo cáo:</span>
+              <strong style={{ color: 'var(--text-primary)' }}>{submittedData.reportDate}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Số lượng ảnh:</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Số lượng ảnh:</span>
               <span className="badge badge-emerald">{submittedData.imageCount} ảnh</span>
             </div>
           </div>
