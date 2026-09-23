@@ -53,8 +53,8 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Max 13MB per upload
-export const MAX_FILE_SIZE = 13 * 1024 * 1024; // 13MB
+// Max 25MB per upload
+export const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 export const upload = multer({
   storage,

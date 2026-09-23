@@ -108,7 +108,7 @@ router.put('/admin/regions/:id', (req, res) => {
 // -------------------------------------------------------------
 // 2. Submit Report API (Guest)
 // Rate limited: max 6 submissions per minute per IP
-// Image limit: unlimited images, total <= 13MB per submission
+// Image limit: unlimited images, total <= 25MB per submission
 // -------------------------------------------------------------
 router.post('/reports', guestReportLimiter, (req, res) => {
   upload.array('images')(req, res, async (err) => {
@@ -123,7 +123,7 @@ router.post('/reports', guestReportLimiter, (req, res) => {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({ 
           success: false, 
-          message: 'Dung lượng ảnh vượt quá giới hạn 13MB. Vui lòng chọn ảnh nhỏ hơn.' 
+          message: 'Dung lượng ảnh vượt quá giới hạn 25MB. Vui lòng chọn ảnh nhỏ hơn.' 
         });
       }
       return res.status(400).json({ success: false, message: err.message || 'Lỗi tải ảnh lên.' });
@@ -158,8 +158,8 @@ router.post('/reports', guestReportLimiter, (req, res) => {
         });
       }
 
-      // Check total size across all files: max 13MB per submission
-      const MAX_TOTAL_SIZE = 13 * 1024 * 1024; // 13MB
+      // Check total size across all files: max 25MB per submission
+      const MAX_TOTAL_SIZE = 25 * 1024 * 1024; // 25MB
       const totalFilesSize = files.reduce((sum, f) => sum + f.size, 0);
       if (totalFilesSize > MAX_TOTAL_SIZE) {
         files.forEach(f => {
@@ -169,7 +169,7 @@ router.post('/reports', guestReportLimiter, (req, res) => {
         });
         return res.status(400).json({ 
           success: false, 
-          message: 'Tổng dung lượng các ảnh vượt quá giới hạn 13MB cho mỗi lần gửi.' 
+          message: 'Tổng dung lượng các ảnh vượt quá giới hạn 25MB cho mỗi lần gửi.' 
         });
       }
 

@@ -14,7 +14,7 @@ import {
   Send
 } from 'lucide-react';
 
-const MAX_BATCH_SIZE = 13 * 1024 * 1024; // 13MB max total per batch
+const MAX_BATCH_SIZE = 25 * 1024 * 1024; // 25MB max total per batch
 
 const DEFAULT_CATEGORIES = [
   'Cài đặt ứng dụng SOS',
@@ -97,7 +97,7 @@ export default function GuestUploadPage({ onShowToast }) {
     }
   };
 
-  // Handle files selection (unlimited count, total size <= 13MB)
+  // Handle files selection (unlimited count, total size <= 25MB)
   const handleFiles = (incomingFiles) => {
     if (!incomingFiles || incomingFiles.length === 0) return;
 
@@ -149,7 +149,7 @@ export default function GuestUploadPage({ onShowToast }) {
       }
 
       if (oversized) {
-        onShowToast('warning', 'Tổng dung lượng các ảnh vượt quá giới hạn 13MB. Những ảnh vượt mức đã được bỏ qua.');
+        onShowToast('warning', 'Tổng dung lượng các ảnh vượt quá giới hạn 25MB. Những ảnh vượt mức đã được bỏ qua.');
       } else if (newItems.length > 0) {
         onShowToast('success', `Đã thêm ${newItems.length} ảnh (${formatFileSize(newItems.reduce((s, i) => s + i.size, 0))}).`);
       }
@@ -220,7 +220,7 @@ export default function GuestUploadPage({ onShowToast }) {
     }
 
     if (totalBytes > MAX_BATCH_SIZE) {
-      onShowToast('error', 'Tổng dung lượng các ảnh vượt quá giới hạn 13MB. Vui lòng xóa bớt ảnh trước khi gửi!');
+      onShowToast('error', 'Tổng dung lượng các ảnh vượt quá giới hạn 25MB. Vui lòng xóa bớt ảnh trước khi gửi!');
       return;
     }
 
@@ -428,7 +428,7 @@ export default function GuestUploadPage({ onShowToast }) {
             </label>
             <span style={{ fontSize: '0.8rem', color: totalBytes > MAX_BATCH_SIZE ? 'var(--accent-rose)' : 'var(--text-muted)' }}>
               Đã chọn: <strong style={{ color: selectedFiles.length > 0 ? 'var(--accent-emerald)' : 'inherit' }}>{selectedFiles.length}</strong> ảnh
-              {selectedFiles.length > 0 && ` (${formatFileSize(totalBytes)} / 13 MB)`}
+              {selectedFiles.length > 0 && ` (${formatFileSize(totalBytes)} / 25 MB)`}
             </span>
           </div>
 
@@ -444,7 +444,7 @@ export default function GuestUploadPage({ onShowToast }) {
             </div>
             <div className="dropzone-title">Kéo & Thả ảnh vào đây hoặc nhấp để chọn ảnh</div>
             <div className="dropzone-subtitle">
-              Không giới hạn số lượng ảnh (Hỗ trợ JPG, PNG, WEBP — Tổng dung lượng tối đa 13MB)
+              Không giới hạn số lượng ảnh (Hỗ trợ JPG, PNG, WEBP — Tổng dung lượng tối đa 25MB)
             </div>
 
             {/* Quick Actions inside Dropzone */}
@@ -524,7 +524,7 @@ export default function GuestUploadPage({ onShowToast }) {
                   ✓ Đã chọn {selectedFiles.length} ảnh:
                 </span>
                 <span style={{ fontSize: '0.8rem', color: totalBytes > MAX_BATCH_SIZE ? 'var(--accent-rose)' : 'var(--text-muted)' }}>
-                  {formatFileSize(totalBytes)} / 13 MB
+                  {formatFileSize(totalBytes)} / 25 MB
                 </span>
               </div>
               <button
@@ -565,7 +565,7 @@ export default function GuestUploadPage({ onShowToast }) {
 
             {totalBytes > MAX_BATCH_SIZE && (
               <p style={{ color: 'var(--accent-rose)', fontSize: '0.8rem', margin: 0 }}>
-                ⚠️ Tổng dung lượng đã vượt quá giới hạn 13MB. Vui lòng bấm dấu (✕) để xóa bớt một số ảnh trước khi gửi.
+                ⚠️ Tổng dung lượng đã vượt quá giới hạn 25MB. Vui lòng bấm dấu (✕) để xóa bớt một số ảnh trước khi gửi.
               </p>
             )}
 
@@ -679,7 +679,7 @@ export default function GuestUploadPage({ onShowToast }) {
                     : !selectedRegionId
                     ? 'Vui lòng chọn Cảnh Sát Khu Vực' 
                     : totalBytes > MAX_BATCH_SIZE
-                    ? 'Tổng dung lượng vượt quá 13MB'
+                    ? 'Tổng dung lượng vượt quá 25MB'
                     : `Gửi Báo Cáo (${selectedFiles.length} Ảnh${totalBytes > 0 ? ` - ${formatFileSize(totalBytes)}` : ''})`
                   }
                 </span>
