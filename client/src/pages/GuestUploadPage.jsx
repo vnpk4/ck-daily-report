@@ -14,7 +14,7 @@ import {
   Send
 } from 'lucide-react';
 
-const MAX_IMAGES = 10;
+const MAX_IMAGES = 1;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const DEFAULT_CATEGORIES = [
@@ -91,7 +91,7 @@ export default function GuestUploadPage({ onShowToast }) {
     }
   };
 
-  // Handle files selection
+  // Handle files selection (strictly 1 image per submission)
   const handleFiles = (incomingFiles) => {
     if (!incomingFiles || incomingFiles.length === 0) return;
 
@@ -118,16 +118,20 @@ export default function GuestUploadPage({ onShowToast }) {
     }
 
     if (oversizedCount > 0) {
-      onShowToast('error', `${oversizedCount} ảnh vượt quá dung lượng tối đa 10MB và đã bị bỏ qua.`);
+      onShowToast('error', 'Ảnh vượt quá dung lượng tối đa 10MB và đã bị bỏ qua.');
+    }
+
+    if (validFiles.length === 0) return;
+
+    if (fileList.length > 1) {
+      onShowToast('info', 'Mỗi lần gửi chỉ được đính kèm 1 ảnh. Đã chọn ảnh đầu tiên.');
     }
 
     setSelectedFiles((prev) => {
-      const combined = [...prev, ...validFiles];
-      if (combined.length > MAX_IMAGES) {
-        onShowToast('info', `Đã giới hạn tối đa ${MAX_IMAGES} ảnh cho mỗi lần gửi.`);
-        return combined.slice(0, MAX_IMAGES);
-      }
-      return combined;
+      // Clean up previous preview URL
+      prev.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      // Keep only 1 image
+      return [validFiles[0]];
     });
   };
 
@@ -186,7 +190,12 @@ export default function GuestUploadPage({ onShowToast }) {
     }
 
     if (selectedFiles.length === 0) {
-      onShowToast('error', 'Ràng buộc bắt buộc: Bạn phải chọn hoặc chụp ít nhất 1 hình ảnh trước khi gửi!');
+      onShowToast('error', 'Ràng buộc bắt buộc: Bạn phải chọn hoặc chụp 1 hình ảnh trước khi gửi!');
+      return;
+    }
+
+    if (selectedFiles.length > MAX_IMAGES) {
+      onShowToast('error', `Mỗi lần gửi chỉ được đính kèm tối đa ${MAX_IMAGES} hình ảnh.`);
       return;
     }
 
@@ -214,10 +223,15 @@ export default function GuestUploadPage({ onShowToast }) {
         body: formData
       });
 
-      const result = await res.json();
+      let result = null;
+      try {
+        result = await res.json();
+      } catch (parseErr) {
+        result = null;
+      }
       setUploadProgress(100);
 
-      if (result.success) {
+      if (res.ok && result?.success) {
         setSubmittedData(result.data);
         onShowToast('success', 'Báo cáo và hình ảnh góp ý đã được gửi thành công!');
         // Clean up file previews
@@ -225,7 +239,10 @@ export default function GuestUploadPage({ onShowToast }) {
         setSelectedFiles([]);
         setNote('');
       } else {
-        onShowToast('error', result.message || 'Lỗi khi gửi báo cáo.');
+        const errorMsg = result?.message || (res.status === 429 
+          ? 'Bạn đã gửi yêu cầu quá nhanh. Mỗi người dùng chỉ được gửi tối đa 6 báo cáo trong 1 phút. Vui lòng thử lại sau.' 
+          : 'Lỗi khi gửi báo cáo.');
+        onShowToast('error', errorMsg);
       }
     } catch (err) {
       console.error('Submit error:', err);
@@ -437,7 +454,7 @@ export default function GuestUploadPage({ onShowToast }) {
             </div>
             <div className="dropzone-title">Kéo & Thả ảnh vào đây hoặc nhấp để tải ảnh lên</div>
             <div className="dropzone-subtitle">
-              Hỗ trợ JPG, PNG, WEBP, ảnh chụp màn hình (Tối đa 10 ảnh, mỗi ảnh ≤ 10MB)
+              Hỗ trợ JPG, PNG, WEBP, ảnh chụp màn hình (Tối đa 1 ảnh, dung lượng ≤ 10MB)
             </div>
 
             {/* Quick Actions inside Dropzone */}
@@ -475,10 +492,12 @@ export default function GuestUploadPage({ onShowToast }) {
             <input
               type="file"
               ref={fileInputRef}
-              multiple
               accept="image/*"
               style={{ display: 'none' }}
-              onChange={(e) => handleFiles(e.target.files)}
+              onChange={(e) => {
+                handleFiles(e.target.files);
+                e.target.value = '';
+              }}
             />
             <input
               type="file"
@@ -486,7 +505,10 @@ export default function GuestUploadPage({ onShowToast }) {
               accept="image/*"
               capture="environment"
               style={{ display: 'none' }}
-              onChange={(e) => handleFiles(e.target.files)}
+              onChange={(e) => {
+                handleFiles(e.target.files);
+                e.target.value = '';
+              }}
             />
           </div>
         </div>
@@ -496,7 +518,7 @@ export default function GuestUploadPage({ onShowToast }) {
           <div style={{ marginTop: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Xem trước hình ảnh ({selectedFiles.length}):
+                Xem trước hình ảnh ({selectedFiles.length}/{MAX_IMAGES}):
               </span>
               <button
                 type="button"

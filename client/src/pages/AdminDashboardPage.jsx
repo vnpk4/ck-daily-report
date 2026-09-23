@@ -13,6 +13,7 @@ import {
   Layers, 
   Clock, 
   Image as ImageIcon,
+  Eye,
   Check,
   X,
   Trophy,
@@ -839,24 +840,52 @@ export default function AdminDashboardPage({ onShowToast }) {
                   </div>
                 </div>
 
-                {/* Images Grid for Report */}
+                {/* Images Attachment (On-demand view to avoid loading images and lagging server) */}
                 {report.images && report.images.length > 0 ? (
-                  <div className="previews-grid" style={{ marginTop: '0.5rem' }}>
-                    {report.images.map((img) => (
-                      <div
+                  <div style={{ marginTop: '0.65rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                    {report.images.map((img, idx) => (
+                      <button
                         key={img.id}
-                        className="preview-card"
-                        style={{ cursor: 'pointer' }}
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          fontSize: '0.825rem',
+                          padding: '0.45rem 0.85rem',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-subtle)',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
                         onClick={() => handleOpenLightbox(img, report.images)}
+                        title="Bấm để xem ảnh chi tiết (chỉ tải ảnh khi bấm xem)"
                       >
-                        <img src={img.url} alt={img.original_name} className="preview-img" loading="lazy" />
-                        <span className="preview-badge-size">{formatFileSize(img.file_size)}</span>
-                      </div>
+                        <ImageIcon size={15} style={{ color: 'var(--accent-cyan)' }} />
+                        <span style={{ fontWeight: 500 }}>
+                          Xem ảnh {report.images.length > 1 ? `#${idx + 1}` : ''}
+                        </span>
+                        <span 
+                          style={{ 
+                            fontSize: '0.75rem', 
+                            padding: '0.15rem 0.4rem', 
+                            borderRadius: '4px', 
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            color: 'var(--text-muted)'
+                          }}
+                        >
+                          {formatFileSize(img.file_size)}
+                        </span>
+                        <Eye size={14} style={{ color: 'var(--accent-emerald)', marginLeft: '2px' }} />
+                      </button>
                     ))}
                   </div>
                 ) : (
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    Không có hình ảnh nào.
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '0.5rem' }}>
+                    Không có hình ảnh đính kèm.
                   </div>
                 )}
               </div>

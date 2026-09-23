@@ -395,7 +395,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
               type="text"
               className="form-control"
               style={{ paddingLeft: '2rem', fontSize: '0.85rem' }}
-              placeholder="Tìm theo tên khu vực CSKV (VD: Khu vực 1)..."
+              placeholder="Tìm theo tên CSKV..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />

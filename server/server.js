@@ -14,6 +14,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust reverse proxy (for correct client IP resolution in rate limiting)
+app.set('trust proxy', 1);
+
 // CORS - allow local Vite dev server
 app.use(cors());
 

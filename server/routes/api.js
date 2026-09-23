@@ -2,12 +2,26 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
+import rateLimit from 'express-rate-limit';
 import db from '../db.js';
 import { upload } from '../storage.js';
 import { streamImagesZip } from '../zipService.js';
 import { isCloudinaryConfigured, uploadToCloudinary, deleteFromCloudinary, testCloudinaryConnection } from '../cloudinaryService.js';
 
 const router = express.Router();
+
+// Rate limiter: each guest (by IP) can send at most 6 requests per minute
+export const guestReportLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 6, // Max 6 requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: 429,
+  message: {
+    success: false,
+    message: 'Bạn đã gửi yêu cầu quá nhanh. Mỗi người dùng chỉ được gửi tối đa 6 báo cáo trong vòng 1 phút. Vui lòng chờ giây lát rồi thử lại.'
+  }
+});
 
 // Dynamically read admin PIN from .env on every check (so changes in .env apply immediately without server restart)
 export const getAdminPin = () => {
@@ -93,20 +107,22 @@ router.put('/admin/regions/:id', (req, res) => {
 
 // -------------------------------------------------------------
 // 2. Submit Report API (Guest)
+// Rate limited: max 6 submissions per minute per IP
+// Image limit: max 1 image per submission
 // -------------------------------------------------------------
-router.post('/reports', (req, res) => {
-  upload.array('images', 10)(req, res, async (err) => {
+router.post('/reports', guestReportLimiter, (req, res) => {
+  upload.array('images', 1)(req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({ 
           success: false, 
-          message: 'Dung lượng một ảnh vượt quá giới hạn 10MB. Vui lòng chọn ảnh nhỏ hơn.' 
+          message: 'Dung lượng ảnh vượt quá giới hạn 10MB. Vui lòng chọn ảnh nhỏ hơn.' 
         });
       }
       if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
         return res.status(400).json({ 
           success: false, 
-          message: 'Tối đa chỉ được gửi 10 ảnh trong một lần báo cáo.' 
+          message: 'Mỗi lần gửi chỉ được đính kèm tối đa 1 hình ảnh.' 
         });
       }
       return res.status(400).json({ success: false, message: err.message || 'Lỗi tải ảnh lên.' });
@@ -140,7 +156,14 @@ router.post('/reports', (req, res) => {
       if (files.length === 0) {
         return res.status(400).json({ 
           success: false, 
-          message: 'Ràng buộc bắt buộc: Vui lòng đính kèm ít nhất 1 hình ảnh báo cáo/chứng minh hợp lệ.' 
+          message: 'Ràng buộc bắt buộc: Vui lòng đính kèm 1 hình ảnh báo cáo/chứng minh hợp lệ.' 
+        });
+      }
+
+      if (files.length > 1) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Mỗi lần gửi chỉ được đính kèm tối đa 1 hình ảnh.' 
         });
       }
 

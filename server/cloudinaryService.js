@@ -13,7 +13,8 @@ let isCloudinaryConfigured = Boolean(cloudinaryUrl || (cloudName && apiKey && ap
 if (cloudinaryUrl) {
   cloudinary.config({
     cloudinary_url: cloudinaryUrl,
-    secure: true
+    secure: true,
+    timeout: 10000
   });
   console.log('☁️ Cloudinary Storage is CONFIGURED and ACTIVE (via CLOUDINARY_URL)!');
 } else if (cloudName && apiKey && apiSecret) {
@@ -21,7 +22,8 @@ if (cloudinaryUrl) {
     cloud_name: cloudName,
     api_key: apiKey,
     api_secret: apiSecret,
-    secure: true
+    secure: true,
+    timeout: 10000
   });
   console.log(`☁️ Cloudinary Storage is CONFIGURED and ACTIVE! (Cloud: ${cloudName})`);
 } else {
