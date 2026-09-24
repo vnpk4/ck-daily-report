@@ -65,7 +65,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
         queryParams.set('month', selectedMonth);
       }
 
-      const res = await fetch(`/api/admin/cskv-rankings?${queryParams.toString()}`);
+      const res = await fetch(`/api/cskv-rankings?${queryParams.toString()}`);
       const result = await res.json();
 
       if (result.success && Array.isArray(result.data)) {

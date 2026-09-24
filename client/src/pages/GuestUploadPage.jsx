@@ -11,7 +11,8 @@ import {
   CheckCircle2, 
   Camera,
   RefreshCw,
-  Send
+  Send,
+  Trophy
 } from 'lucide-react';
 import { batchOptimizeImages } from '../utils/imageCompressor.js';
 
@@ -31,7 +32,7 @@ const formatFileSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-export default function GuestUploadPage({ onShowToast }) {
+export default function GuestUploadPage({ onShowToast, onNavigateRanking }) {
   const [regions, setRegions] = useState([]);
   const [loadingRegions, setLoadingRegions] = useState(true);
 
@@ -363,6 +364,7 @@ export default function GuestUploadPage({ onShowToast }) {
 
           <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
             <button
+              type="button"
               className="btn btn-primary"
               style={{ width: '100%' }}
               onClick={() => setSubmittedData(null)}
@@ -370,6 +372,27 @@ export default function GuestUploadPage({ onShowToast }) {
               <RefreshCw size={18} />
               <span>Gửi Thêm Báo Cáo Khác</span>
             </button>
+
+            {onNavigateRanking && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ 
+                  width: '100%', 
+                  background: 'rgba(217, 119, 6, 0.1)', 
+                  borderColor: 'rgba(251, 191, 36, 0.4)', 
+                  color: 'var(--cand-gold)',
+                  fontWeight: 700 
+                }}
+                onClick={() => {
+                  setSubmittedData(null);
+                  onNavigateRanking();
+                }}
+              >
+                <Trophy size={18} />
+                <span>Xem Bảng Xếp Hạng Thi Đua CSKV</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

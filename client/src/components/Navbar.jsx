@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, UploadCloud } from 'lucide-react';
+import { ShieldCheck, UploadCloud, Trophy } from 'lucide-react';
 
 export default function Navbar({ currentTab, setCurrentTab }) {
   return (
@@ -31,6 +31,15 @@ export default function Navbar({ currentTab, setCurrentTab }) {
           <UploadCloud size={16} />
           <span className="nav-text-full">Gửi Ảnh Thực Hiện</span>
           <span className="nav-text-short">Gửi Ảnh</span>
+        </button>
+
+        <button
+          className={`nav-btn ${currentTab === 'ranking' ? 'active' : ''}`}
+          onClick={() => setCurrentTab('ranking')}
+        >
+          <Trophy size={16} />
+          <span className="nav-text-full">Bảng Xếp Hạng</span>
+          <span className="nav-text-short">Xếp Hạng</span>
         </button>
 
         <button

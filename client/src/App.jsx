@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import Navbar from './components/Navbar';
 import GuestUploadPage from './pages/GuestUploadPage';
+import CskvRankingPage from './pages/CskvRankingPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import Toast from './components/Toast';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState('guest'); // 'guest' | 'admin'
+  const [currentTab, setCurrentTab] = useState('guest'); // 'guest' | 'ranking' | 'admin'
   const [toasts, setToasts] = useState([]);
 
   const showToast = (type, message, title = '') => {
@@ -27,9 +28,20 @@ export default function App() {
       <Navbar currentTab={currentTab} setCurrentTab={setCurrentTab} />
 
       <main style={{ flex: 1 }}>
-        {currentTab === 'guest' ? (
-          <GuestUploadPage onShowToast={showToast} />
-        ) : (
+        {currentTab === 'guest' && (
+          <GuestUploadPage 
+            onShowToast={showToast} 
+            onNavigateRanking={() => setCurrentTab('ranking')}
+          />
+        )}
+        {currentTab === 'ranking' && (
+          <CskvRankingPage 
+            onShowToast={showToast} 
+            onNavigateUpload={() => setCurrentTab('guest')} 
+            isAdminView={false} 
+          />
+        )}
+        {currentTab === 'admin' && (
           <AdminDashboardPage onShowToast={showToast} />
         )}
       </main>
