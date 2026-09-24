@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Send
 } from 'lucide-react';
+import { batchOptimizeImages } from '../utils/imageCompressor.js';
 
 const MAX_BATCH_SIZE = 25 * 1024 * 1024; // 25MB max total per batch
 
@@ -42,7 +43,8 @@ export default function GuestUploadPage({ onShowToast }) {
   const [note, setNote] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]); // array of { file, previewUrl, id, size }
 
-  // Upload status
+  // Upload & compression status
+  const [isCompressing, setIsCompressing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [submittedData, setSubmittedData] = useState(null);
@@ -97,8 +99,8 @@ export default function GuestUploadPage({ onShowToast }) {
     }
   };
 
-  // Handle files selection (unlimited count, total size <= 25MB)
-  const handleFiles = (incomingFiles) => {
+  // Handle files selection with smart compression
+  const handleFiles = async (incomingFiles) => {
     if (!incomingFiles || incomingFiles.length === 0) return;
 
     const fileList = Array.from(incomingFiles);
@@ -119,43 +121,64 @@ export default function GuestUploadPage({ onShowToast }) {
 
     if (validImageFiles.length === 0) return;
 
-    setSelectedFiles((prev) => {
-      let currentBytes = prev.reduce((sum, item) => sum + item.size, 0);
-      const newItems = [];
-      let oversized = false;
+    setIsCompressing(true);
+    try {
+      // Tự động tối ưu dung lượng thông minh:
+      // - Ảnh <= 600KB hoặc ảnh gif/svg: Giữ nguyên 100% gốc không đổi
+      // - Ảnh camera dung lượng lớn: Tối ưu về max 1600px và JPEG 82%
+      const { files: processedFiles, savedBytes } = await batchOptimizeImages(validImageFiles);
 
-      for (const file of validImageFiles) {
-        // Avoid exact duplicates
-        const isDuplicate = prev.some(
-          (p) => p.file.name === file.name && p.file.size === file.size && p.file.lastModified === file.lastModified
-        ) || newItems.some(
-          (n) => n.file.name === file.name && n.file.size === file.size && n.file.lastModified === file.lastModified
-        );
+      setSelectedFiles((prev) => {
+        let currentBytes = prev.reduce((sum, item) => sum + item.size, 0);
+        const newItems = [];
+        let oversized = false;
 
-        if (isDuplicate) continue;
+        for (const file of processedFiles) {
+          // Avoid exact duplicates
+          const isDuplicate = prev.some(
+            (p) => p.file.name === file.name && p.file.size === file.size
+          ) || newItems.some(
+            (n) => n.file.name === file.name && n.file.size === file.size
+          );
 
-        if (currentBytes + file.size > MAX_BATCH_SIZE) {
-          oversized = true;
-          continue;
+          if (isDuplicate) continue;
+
+          if (currentBytes + file.size > MAX_BATCH_SIZE) {
+            oversized = true;
+            continue;
+          }
+
+          currentBytes += file.size;
+          newItems.push({
+            id: `${file.name}-${file.lastModified || Date.now()}-${Math.random()}`,
+            file,
+            previewUrl: URL.createObjectURL(file),
+            size: file.size
+          });
         }
 
-        currentBytes += file.size;
-        newItems.push({
-          id: `${file.name}-${file.lastModified || Date.now()}-${Math.random()}`,
-          file,
-          previewUrl: URL.createObjectURL(file),
-          size: file.size
-        });
-      }
+        if (oversized) {
+          onShowToast('warning', 'Tổng dung lượng các ảnh vượt quá giới hạn 25MB. Những ảnh vượt mức đã được bỏ qua.');
+        } else if (newItems.length > 0) {
+          const totalNewSize = newItems.reduce((s, i) => s + i.size, 0);
+          if (savedBytes > 500 * 1024) {
+            onShowToast(
+              'success',
+              `Đã thêm ${newItems.length} ảnh (Tối ưu giảm ${formatFileSize(savedBytes)}, còn ${formatFileSize(totalNewSize)}).`
+            );
+          } else {
+            onShowToast('success', `Đã thêm ${newItems.length} ảnh (${formatFileSize(totalNewSize)}).`);
+          }
+        }
 
-      if (oversized) {
-        onShowToast('warning', 'Tổng dung lượng các ảnh vượt quá giới hạn 25MB. Những ảnh vượt mức đã được bỏ qua.');
-      } else if (newItems.length > 0) {
-        onShowToast('success', `Đã thêm ${newItems.length} ảnh (${formatFileSize(newItems.reduce((s, i) => s + i.size, 0))}).`);
-      }
-
-      return [...prev, ...newItems];
-    });
+        return [...prev, ...newItems];
+      });
+    } catch (err) {
+      console.error('Lỗi khi tối ưu ảnh:', err);
+      onShowToast('error', 'Có lỗi khi xử lý ảnh.');
+    } finally {
+      setIsCompressing(false);
+    }
   };
 
   const removeFile = (id) => {
@@ -444,8 +467,30 @@ export default function GuestUploadPage({ onShowToast }) {
             </div>
             <div className="dropzone-title">Kéo & Thả ảnh vào đây hoặc nhấp để chọn ảnh</div>
             <div className="dropzone-subtitle">
-              Không giới hạn số lượng ảnh (Hỗ trợ JPG, PNG, WEBP — Tổng dung lượng tối đa 25MB)
+              Không giới hạn số lượng ảnh (Tự động tối ưu dung lượng ảnh camera để gửi siêu tốc)
             </div>
+
+            {isCompressing && (
+              <div 
+                style={{ 
+                  marginTop: '0.85rem', 
+                  color: 'var(--accent-cyan)', 
+                  fontSize: '0.85rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.5rem',
+                  padding: '0.35rem 0.75rem',
+                  background: 'rgba(56, 189, 248, 0.1)',
+                  borderRadius: 'var(--radius-sm)',
+                  width: 'fit-content',
+                  margin: '0.85rem auto 0 auto'
+                }}
+              >
+                <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                <span>Đang xử lý & tối ưu dung lượng ảnh...</span>
+              </div>
+            )}
 
             {/* Quick Actions inside Dropzone */}
             <div
@@ -660,12 +705,17 @@ export default function GuestUploadPage({ onShowToast }) {
               width: '100%', 
               padding: '0.95rem', 
               fontSize: '1.05rem',
-              opacity: isFormValid && !isSubmitting ? 1 : 0.65,
-              cursor: isFormValid && !isSubmitting ? 'pointer' : 'not-allowed'
+              opacity: isFormValid && !isSubmitting && !isCompressing ? 1 : 0.65,
+              cursor: isFormValid && !isSubmitting && !isCompressing ? 'pointer' : 'not-allowed'
             }}
-            disabled={isSubmitting || !isFormValid}
+            disabled={isSubmitting || isCompressing || !isFormValid}
           >
-            {isSubmitting ? (
+            {isCompressing ? (
+              <>
+                <RefreshCw size={20} className="spin-animation" style={{ animation: 'spin 1s linear infinite' }} />
+                <span>Đang Tối Ưu Dung Lượng Ảnh...</span>
+              </>
+            ) : isSubmitting ? (
               <>
                 <RefreshCw size={20} className="spin-animation" style={{ animation: 'spin 1s linear infinite' }} />
                 <span>Đang Tải Lên Hệ Thống... ({uploadProgress}%)</span>

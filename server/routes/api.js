@@ -208,26 +208,38 @@ router.post('/reports', guestReportLimiter, (req, res) => {
       const reportResult = await insertReport.run(finalGuestName, region_id, selectedCategory, dateStr, note ? note.trim() : '');
       const reportId = reportResult.lastInsertRowid;
 
-      // Save report images (Cloudinary or local disk)
+      // Save report images (Cloudinary or local disk) concurrently in parallel
       const insertImage = db.prepare(`
         INSERT INTO report_images (report_id, original_name, stored_name, file_path, file_size, mime_type)
         VALUES (?, ?, ?, ?, ?, ?)
       `);
 
-      for (const file of files) {
-        if (isCloudinaryConfigured) {
-          try {
-            const cloudRes = await uploadToCloudinary(file.path, dateStr);
-            await insertImage.run(
-              reportId,
-              file.originalname,
-              cloudRes.public_id,
-              cloudRes.url,
-              cloudRes.bytes || file.size,
-              file.mimetype
-            );
-          } catch (cloudErr) {
-            console.error('Cloudinary upload error, fallback to local:', cloudErr);
+      await Promise.all(
+        files.map(async (file) => {
+          if (isCloudinaryConfigured) {
+            try {
+              const cloudRes = await uploadToCloudinary(file.path, dateStr);
+              await insertImage.run(
+                reportId,
+                file.originalname,
+                cloudRes.public_id,
+                cloudRes.url,
+                cloudRes.bytes || file.size,
+                file.mimetype
+              );
+            } catch (cloudErr) {
+              console.error('Cloudinary upload error, fallback to local:', cloudErr);
+              const relativePath = `${dateStr}/${file.filename}`;
+              await insertImage.run(
+                reportId,
+                file.originalname,
+                relativePath,
+                file.path,
+                file.size,
+                file.mimetype
+              );
+            }
+          } else {
             const relativePath = `${dateStr}/${file.filename}`;
             await insertImage.run(
               reportId,
@@ -238,18 +250,8 @@ router.post('/reports', guestReportLimiter, (req, res) => {
               file.mimetype
             );
           }
-        } else {
-          const relativePath = `${dateStr}/${file.filename}`;
-          await insertImage.run(
-            reportId,
-            file.originalname,
-            relativePath,
-            file.path,
-            file.size,
-            file.mimetype
-          );
-        }
-      }
+        })
+      );
 
       res.status(201).json({
         success: true,
