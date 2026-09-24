@@ -16,7 +16,6 @@ import {
   Eye,
   Check,
   X,
-  Trophy,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -27,7 +26,6 @@ import {
   RotateCcw
 } from 'lucide-react';
 import Lightbox from '../components/Lightbox';
-import CskvRankingPage from './CskvRankingPage';
 
 const DEFAULT_CATEGORIES = [
   'Cài đặt ứng dụng SOS',
@@ -57,7 +55,6 @@ export default function AdminDashboardPage({ onShowToast }) {
   });
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
-  const [adminSubTab, setAdminSubTab] = useState('reports'); // 'reports' | 'ranking'
 
   // Regions & Categories State
   const [regions, setRegions] = useState([]);
@@ -617,75 +614,7 @@ export default function AdminDashboardPage({ onShowToast }) {
         </div>
       )}
 
-      {/* Admin Subtabs Navigation */}
-      <div 
-        style={{ 
-          display: 'flex', 
-          gap: '0.75rem', 
-          marginBottom: '1.75rem', 
-          background: 'rgba(255, 255, 255, 0.04)', 
-          padding: '0.4rem', 
-          borderRadius: 'var(--radius-lg)', 
-          border: '1px solid var(--border-subtle)',
-          width: 'fit-content',
-          flexWrap: 'wrap'
-        }}
-      >
-        <button
-          type="button"
-          className={`btn ${adminSubTab === 'reports' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setAdminSubTab('reports')}
-          style={{
-            padding: '0.65rem 1.25rem',
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            borderRadius: 'var(--radius-md)',
-            border: adminSubTab === 'reports' ? 'none' : '1px solid transparent'
-          }}
-        >
-          <Layers size={18} />
-          <span>Danh Sách Báo Cáo & Xuất ZIP</span>
-        </button>
 
-        <button
-          type="button"
-          className={`btn ${adminSubTab === 'ranking' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setAdminSubTab('ranking')}
-          style={{
-            padding: '0.65rem 1.25rem',
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            borderRadius: 'var(--radius-md)',
-            border: adminSubTab === 'ranking' ? 'none' : '1px solid transparent',
-            background: adminSubTab === 'ranking' ? 'linear-gradient(135deg, #b91c1c 0%, #991b1b 100%)' : undefined,
-            color: adminSubTab === 'ranking' ? '#ffffff' : undefined
-          }}
-        >
-          <Trophy size={18} color={adminSubTab === 'ranking' ? '#fbbf24' : '#f59e0b'} />
-          <span>Bảng Xếp Hạng CSKV</span>
-          <span 
-            style={{ 
-              background: adminSubTab === 'ranking' ? 'rgba(251, 191, 36, 0.25)' : 'rgba(245, 158, 11, 0.15)', 
-              color: adminSubTab === 'ranking' ? '#fef08a' : '#f59e0b', 
-              fontSize: '0.72rem', 
-              padding: '2px 8px', 
-              borderRadius: '12px',
-              fontWeight: 700
-            }}
-          >
-            Thi Đua
-          </span>
-        </button>
-      </div>
-
-      {adminSubTab === 'ranking' ? (
-        <CskvRankingPage onShowToast={onShowToast} isAdminView={true} />
-      ) : (
-        <>
           {/* Clean, Non-overlapping Filter Section */}
           <div className="glass-card" style={{ marginBottom: '1.75rem', padding: '1.5rem' }}>
             {/* Row 1: Dropdown filters (Khu Vực & Nội Dung Góp Ý) */}
@@ -1122,8 +1051,6 @@ export default function AdminDashboardPage({ onShowToast }) {
           </div>
         )}
       </div>
-      </>
-      )}
 
       {/* Region Management Modal */}
       {showRegionModal && (
