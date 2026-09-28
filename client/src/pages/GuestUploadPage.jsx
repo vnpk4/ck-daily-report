@@ -22,7 +22,7 @@ const DEFAULT_CATEGORIES = [
   'Cài đặt ứng dụng SOS',
   'Thực hiện định danh mức 2',
   'Góp ý cải cách thủ tục hành chính',
-  'Góp ý sửa đổi bộ luật hình sự'
+  'Góp ý sửa đổi các bộ luật'
 ];
 
 const formatFileSize = (bytes) => {
