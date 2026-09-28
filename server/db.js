@@ -144,6 +144,18 @@ if (isPostgres) {
       }
       console.log('✅ Đã nạp thành công 22 CSKV mặc định lên Supabase!');
     }
+
+    // Auto-migrate legacy category name 'Góp ý sửa đổi bộ luật hình sự' -> 'Góp ý sửa đổi các bộ luật'
+    try {
+      const updateRes = await pool.query(
+        "UPDATE reports SET category = 'Góp ý sửa đổi các bộ luật' WHERE category = 'Góp ý sửa đổi bộ luật hình sự'"
+      );
+      if (updateRes.rowCount > 0) {
+        console.log(`✅ Đã tự động cập nhật ${updateRes.rowCount} bản ghi từ 'Góp ý sửa đổi bộ luật hình sự' sang 'Góp ý sửa đổi các bộ luật'.`);
+      }
+    } catch (migErr) {
+      console.error('Lỗi khi đồng bộ danh mục báo cáo cũ:', migErr);
+    }
   } catch (initErr) {
     console.error('❌ Lỗi khởi tạo Supabase PostgreSQL:', initErr);
   }
@@ -202,6 +214,13 @@ if (isPostgres) {
 
   try {
     sqliteDb.exec("ALTER TABLE reports ADD COLUMN category TEXT DEFAULT 'Góp ý chung';");
+  } catch (e) {}
+
+  try {
+    const res = sqliteDb.prepare("UPDATE reports SET category = 'Góp ý sửa đổi các bộ luật' WHERE category = 'Góp ý sửa đổi bộ luật hình sự'").run();
+    if (res.changes > 0) {
+      console.log(`✅ SQLite: Đã cập nhật ${res.changes} bản ghi danh mục cũ.`);
+    }
   } catch (e) {}
 
   const countStmt = sqliteDb.prepare('SELECT COUNT(*) as count FROM regions');

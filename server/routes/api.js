@@ -198,7 +198,10 @@ router.post('/reports', guestReportLimiter, (req, res) => {
         ? report_date
         : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
 
-      const selectedCategory = (category && category.trim()) ? category.trim() : FEEDBACK_CATEGORIES[0];
+      let selectedCategory = (category && category.trim()) ? category.trim() : FEEDBACK_CATEGORIES[0];
+      if (selectedCategory === 'Góp ý sửa đổi bộ luật hình sự') {
+        selectedCategory = 'Góp ý sửa đổi các bộ luật';
+      }
 
       // Save report with category
       const insertReport = db.prepare(`
@@ -288,8 +291,13 @@ router.get('/admin/reports', async (req, res) => {
     }
 
     if (category && category !== 'all') {
-      whereClauses.push('r.category = ?');
-      params.push(category);
+      if (category === 'Góp ý sửa đổi các bộ luật') {
+        whereClauses.push('(r.category = ? OR r.category = ?)');
+        params.push('Góp ý sửa đổi các bộ luật', 'Góp ý sửa đổi bộ luật hình sự');
+      } else {
+        whereClauses.push('r.category = ?');
+        params.push(category);
+      }
     }
 
     if (startDate) {
@@ -363,6 +371,7 @@ router.get('/admin/reports', async (req, res) => {
 
     const enrichedReports = reports.map(rep => ({
       ...rep,
+      category: rep.category === 'Góp ý sửa đổi bộ luật hình sự' ? 'Góp ý sửa đổi các bộ luật' : rep.category,
       image_count: Number(rep.image_count || 0),
       images: (imagesByReport[rep.id] || []).map(img => ({
         ...img,
@@ -442,8 +451,13 @@ router.get('/admin/export-zip', async (req, res) => {
     }
 
     if (category && category !== 'all') {
-      whereClauses.push('r.category = ?');
-      params.push(category);
+      if (category === 'Góp ý sửa đổi các bộ luật') {
+        whereClauses.push('(r.category = ? OR r.category = ?)');
+        params.push('Góp ý sửa đổi các bộ luật', 'Góp ý sửa đổi bộ luật hình sự');
+      } else {
+        whereClauses.push('r.category = ?');
+        params.push(category);
+      }
     }
 
     if (startDate) {
@@ -782,7 +796,8 @@ const getCskvRankings = async (req, res) => {
     const catMap = {};
     for (const row of catRows) {
       if (!catMap[row.region_id]) catMap[row.region_id] = {};
-      catMap[row.region_id][row.category] = Number(row.count || 0);
+      const catKey = row.category === 'Góp ý sửa đổi bộ luật hình sự' ? 'Góp ý sửa đổi các bộ luật' : row.category;
+      catMap[row.region_id][catKey] = (catMap[row.region_id][catKey] || 0) + Number(row.count || 0);
     }
 
     const rankings = rawRankings.map(item => ({
