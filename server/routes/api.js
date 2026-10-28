@@ -730,9 +730,10 @@ router.get('/stats', async (req, res) => {
 // -------------------------------------------------------------
 const getCskvRankings = async (req, res) => {
   try {
-    const { timeRange = 'all', date, month, year, startDate, endDate } = req.query;
+    const { timeRange = 'all', date, month, year, startDate, endDate, category } = req.query;
 
     let dateWhere = '';
+    let categoryWhere = '';
     let params = [];
 
     if (timeRange === 'day') {
@@ -762,6 +763,17 @@ const getCskvRankings = async (req, res) => {
       }
     }
 
+    // Optional filter by implementation content (category)
+    if (category && category !== 'all') {
+      if (category === 'Góp ý sửa đổi các bộ luật') {
+        categoryWhere = 'AND (r.category = ? OR r.category = ?)';
+        params.push(category, 'Góp ý sửa đổi bộ luật hình sự');
+      } else {
+        categoryWhere = 'AND r.category = ?';
+        params.push(category);
+      }
+    }
+
     // 1. Rankings of regions by image count and report count
     const sql = `
       SELECT 
@@ -772,7 +784,7 @@ const getCskvRankings = async (req, res) => {
         COUNT(DISTINCT r.id) as report_count,
         COUNT(img.id) as image_count
       FROM regions reg
-      LEFT JOIN reports r ON reg.id = r.region_id ${dateWhere}
+      LEFT JOIN reports r ON reg.id = r.region_id ${dateWhere} ${categoryWhere}
       LEFT JOIN report_images img ON r.id = img.report_id
       WHERE reg.is_active = 1
       GROUP BY reg.id, reg.name, reg.code, reg.display_order
@@ -789,7 +801,7 @@ const getCskvRankings = async (req, res) => {
         COUNT(img.id) as count
       FROM reports r
       JOIN report_images img ON r.id = img.report_id
-      WHERE 1=1 ${dateWhere}
+      WHERE 1=1 ${dateWhere} ${categoryWhere}
       GROUP BY r.region_id, r.category
     `;
     const catRows = await db.prepare(catSql).all(...params);
@@ -830,6 +842,7 @@ const getCskvRankings = async (req, res) => {
         totalImages,
         totalRegions: rankings.length,
         timeRange,
+        category: category || 'all',
         filterValue: date || month || year || 'all'
       }
     });

@@ -21,6 +21,13 @@ import {
   FileText
 } from 'lucide-react';
 
+const DEFAULT_CATEGORIES = [
+  'Cài đặt ứng dụng SOS',
+  'Thực hiện định danh mức 2',
+  'Góp ý cải cách thủ tục hành chính',
+  'Góp ý sửa đổi các bộ luật'
+];
+
 export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdminView = false }) {
   // Current time helpers
   const todayStr = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
@@ -39,10 +46,18 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
     return d.toLocaleDateString('en-CA').slice(0, 7);
   }, []);
 
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const prevYear = useMemo(() => currentYear - 1, [currentYear]);
+
   // Filter State: Default to 'day' (Hôm nay) or 'month' (Tháng này)
-  const [timeRange, setTimeRange] = useState('day'); // 'day' | 'month' | 'all'
+  const [timeRange, setTimeRange] = useState('day'); // 'day' | 'month' | 'year' | 'all'
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
+  const [selectedYear, setSelectedYear] = useState(String(currentYear));
+
+  // Implementation content (category) filter
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [selectedCategory, setSelectedCategory] = useState('all'); // 'all' | category name
 
   // Search State
   const [searchTerm, setSearchTerm] = useState('');
@@ -63,6 +78,12 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
         queryParams.set('date', selectedDate);
       } else if (timeRange === 'month') {
         queryParams.set('month', selectedMonth);
+      } else if (timeRange === 'year') {
+        queryParams.set('year', selectedYear);
+      }
+
+      if (selectedCategory && selectedCategory !== 'all') {
+        queryParams.set('category', selectedCategory);
       }
 
       const res = await fetch(`/api/cskv-rankings?${queryParams.toString()}`);
@@ -84,7 +105,25 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
 
   useEffect(() => {
     fetchRankings();
-  }, [timeRange, selectedDate, selectedMonth]);
+  }, [timeRange, selectedDate, selectedMonth, selectedYear, selectedCategory]);
+
+  // Load available implementation contents (categories) from API
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch('/api/categories');
+        const result = await res.json();
+        if (!cancelled && result.success && Array.isArray(result.data) && result.data.length > 0) {
+          setCategories(result.data);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải danh mục nội dung thực hiện:', err);
+      }
+    };
+    fetchCategories();
+    return () => { cancelled = true; };
+  }, []);
 
   // Filtered and sorted rankings:
   // Mặc định sắp xếp theo những người làm nhiều nhất đến những người thấp nhất (b.report_count - a.report_count)
@@ -136,14 +175,23 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
       const prefix = isCurrentMonth ? 'Tháng này - ' : '';
       return `${prefix}Tháng ${m}/${y}`;
     }
+    if (timeRange === 'year') {
+      return selectedYear === String(currentYear) ? `Năm nay - Năm ${selectedYear}` : `Năm ${selectedYear}`;
+    }
     return 'Toàn bộ thời gian';
   };
+
+  // Content filter label
+  const getCategoryLabel = () => (
+    selectedCategory === 'all' ? 'Tất cả nội dung' : selectedCategory
+  );
 
   // Copy Briefing Summary for Police Meeting / Zalo Group
   const handleCopySummary = () => {
     const timeLabel = getTimeRangeLabel();
     let text = `📋 THỐNG KÊ THI ĐUA CSKV - ${timeLabel.toUpperCase()}\n`;
     text += `Đơn vị: Công An Phường Cầu Kiệu\n`;
+    text += `Nội dung thực hiện: ${getCategoryLabel()}\n`;
     text += `Tổng số trường hợp hoàn thành: ${meta.totalImages} trường hợp\n`;
     text += `------------------------------------\n`;
 
@@ -219,7 +267,8 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
           </h1>
           <p style={{ color: '#fef2f2', fontSize: '0.925rem', maxWidth: '750px', lineHeight: 1.5, opacity: 0.95 }}>
             Mỗi trường hợp được tính hợp lệ khi có hình ảnh minh chứng thực hiện. 
-            Hệ thống tự động sắp xếp theo thứ tự khu vực làm nhiều nhất đến thấp nhất theo ngày và theo tháng.
+            Hệ thống tự động sắp xếp theo thứ tự khu vực làm nhiều nhất đến thấp nhất theo ngày, tháng, năm
+            và có thể lọc riêng theo từng nội dung thực hiện.
           </p>
         </div>
 
@@ -273,6 +322,16 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
               >
                 <Clock size={16} />
                 <span>Theo Tháng</span>
+              </button>
+
+              <button
+                type="button"
+                className={`btn ${timeRange === 'year' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.9rem', padding: '0.5rem 1.1rem', fontWeight: 700 }}
+                onClick={() => setTimeRange('year')}
+              >
+                <Calendar size={16} />
+                <span>Theo Năm</span>
               </button>
 
               <button
@@ -347,6 +406,38 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
               </div>
             )}
 
+            {timeRange === 'year' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className={`btn ${selectedYear === String(currentYear) ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem' }}
+                  onClick={() => setSelectedYear(String(currentYear))}
+                >
+                  Năm nay
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${selectedYear === String(prevYear) ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem' }}
+                  onClick={() => setSelectedYear(String(prevYear))}
+                >
+                  Năm trước
+                </button>
+                <input
+                  type="number"
+                  className="form-control"
+                  min="2000"
+                  max="2100"
+                  step="1"
+                  style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', width: '110px' }}
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  title="Chọn năm cụ thể"
+                />
+              </div>
+            )}
+
             <button
               type="button"
               className="btn btn-secondary"
@@ -398,6 +489,32 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
+          {/* Content (category) filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <Filter size={15} style={{ color: selectedCategory === 'all' ? 'var(--text-muted)' : 'var(--cand-red)' }} />
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+              Nội dung thực hiện:
+            </span>
+            <select
+              className="form-control"
+              style={{
+                padding: '0.4rem 0.65rem',
+                fontSize: '0.85rem',
+                width: 'auto',
+                maxWidth: '320px',
+                borderColor: selectedCategory === 'all' ? 'var(--border-subtle)' : 'rgba(185, 28, 28, 0.45)'
+              }}
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              title="Chọn nội dung thực hiện để xếp hạng CSKV theo nội dung đó"
+            >
+              <option value="all">Tất cả nội dung</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -422,6 +539,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
               </div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
                 Tổng số trường hợp hoàn thành đã tải lên
+                {selectedCategory !== 'all' && ` (nội dung: ${selectedCategory})`}
               </div>
             </div>
             <div 
@@ -494,7 +612,9 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
               BỤC VINH DANH CSKV XUẤT SẮC ({getTimeRangeLabel()})
             </h2>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-              Top các khu vực có số trường hợp hoàn thành cao nhất
+              {selectedCategory === 'all'
+                ? 'Top các khu vực có số trường hợp hoàn thành cao nhất'
+                : `Top các khu vực thực hiện nhiều nhất nội dung: ${selectedCategory}`}
             </p>
           </div>
 
@@ -633,10 +753,12 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div>
             <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-              Chi Tiết Xếp Hạng 22 CSKV (Từ Cao Đến Thấp)
+              {selectedCategory === 'all'
+                ? 'Chi Tiết Xếp Hạng 22 CSKV (Từ Cao Đến Thấp)'
+                : `Xếp Hạng Theo Nội Dung: ${selectedCategory}`}
             </h2>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Hiển thị {processedRankings.length} khu vực • Thời gian: {getTimeRangeLabel()}
+              Hiển thị {processedRankings.length} khu vực • Thời gian: {getTimeRangeLabel()} • Nội dung: {getCategoryLabel()}
             </span>
           </div>
 
@@ -704,7 +826,9 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                 >
                   <th style={{ padding: '0.75rem 0.5rem', width: '60px', textAlign: 'center' }}>Hạng</th>
                   <th style={{ padding: '0.75rem 0.75rem' }}>Khu Vực CSKV</th>
-                  <th style={{ padding: '0.75rem 0.75rem', minWidth: '190px' }}>Số Trường Hợp Đã Hoàn Thành</th>
+                  <th style={{ padding: '0.75rem 0.75rem', minWidth: '190px' }}>
+                    {selectedCategory === 'all' ? 'Số Trường Hợp Đã Hoàn Thành' : `Số Trường Hợp - ${selectedCategory}`}
+                  </th>
                   <th style={{ padding: '0.75rem 0.75rem' }}>Nội Dung Thực Hiện</th>
                   <th style={{ padding: '0.75rem 0.75rem', textAlign: 'center', width: '130px' }}>Đánh Giá Thi Đua</th>
                 </tr>
