@@ -75,9 +75,6 @@ export default function GuestUploadPage({ onShowToast, onNavigateRanking }) {
       const data = await res.json();
       if (data.success && data.data) {
         setRegions(data.data);
-        if (data.data.length > 0 && !selectedRegionId) {
-          setSelectedRegionId(data.data[0].id);
-        }
       }
     } catch (err) {
       console.error('Error fetching regions:', err);
@@ -224,7 +221,7 @@ export default function GuestUploadPage({ onShowToast, onNavigateRanking }) {
     e.preventDefault();
 
     if (!selectedRegionId) {
-      onShowToast('error', 'Vui lòng chọn Khu vực / CSKV tiếp nhận.');
+      onShowToast('error', 'Vui lòng chọn người gửi (Cảnh Sát Khu Vực).');
       return;
     }
 
@@ -283,6 +280,7 @@ export default function GuestUploadPage({ onShowToast, onNavigateRanking }) {
         selectedFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl));
         setSelectedFiles([]);
         setNote('');
+        setSelectedRegionId('');
       } else {
         const errorMsg = result?.message || (res.status === 429 
           ? 'Bạn đã gửi yêu cầu quá nhanh. Mỗi người dùng chỉ được gửi tối đa 6 báo cáo trong 1 phút. Vui lòng thử lại sau.' 
@@ -367,7 +365,10 @@ export default function GuestUploadPage({ onShowToast, onNavigateRanking }) {
               type="button"
               className="btn btn-primary"
               style={{ width: '100%' }}
-              onClick={() => setSubmittedData(null)}
+              onClick={() => {
+                setSubmittedData(null);
+                setSelectedRegionId('');
+              }}
             >
               <RefreshCw size={18} />
               <span>Gửi Thêm Báo Cáo Khác</span>
@@ -421,6 +422,7 @@ export default function GuestUploadPage({ onShowToast, onNavigateRanking }) {
               disabled={loadingRegions}
               required
             >
+              <option value="">-- Chọn người gửi --</option>
               {regions.map((reg) => (
                 <option key={reg.id} value={reg.id}>
                   {reg.name}
@@ -750,7 +752,7 @@ export default function GuestUploadPage({ onShowToast, onNavigateRanking }) {
                   {!hasImages 
                     ? 'Vui lòng đính kèm ít nhất 1 ảnh để gửi' 
                     : !selectedRegionId
-                    ? 'Vui lòng chọn Cảnh Sát Khu Vực' 
+                    ? 'Vui lòng chọn người gửi (CSKV)' 
                     : totalBytes > MAX_BATCH_SIZE
                     ? 'Tổng dung lượng vượt quá 25MB'
                     : `Gửi Báo Cáo (${selectedFiles.length} Ảnh${totalBytes > 0 ? ` - ${formatFileSize(totalBytes)}` : ''})`
