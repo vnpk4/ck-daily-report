@@ -28,6 +28,49 @@ const DEFAULT_CATEGORIES = [
   'Góp ý sửa đổi các bộ luật'
 ];
 
+// Helper functions for ISO week calculation
+const getIsoWeek = (d = new Date()) => {
+  const date = new Date(d.getTime());
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  const weekNum = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+  return `${date.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+};
+
+const parseWeekRange = (weekStr) => {
+  if (!weekStr || !weekStr.includes('-W')) {
+    return parseWeekRange(getIsoWeek(new Date()));
+  }
+  const parts = weekStr.split('-W');
+  const year = parseInt(parts[0], 10);
+  const w = parseInt(parts[1], 10);
+  const jan4 = new Date(year, 0, 4);
+  const jan4Day = jan4.getDay() || 7;
+  const monW1 = new Date(year, 0, 4 - (jan4Day - 1));
+  const mon = new Date(monW1.getFullYear(), monW1.getMonth(), monW1.getDate() + (w - 1) * 7);
+  const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+  
+  const toYmd = (d) => [
+    d.getFullYear(), 
+    String(d.getMonth() + 1).padStart(2, '0'), 
+    String(d.getDate()).padStart(2, '0')
+  ].join('-');
+
+  const startDisplay = mon.getFullYear() !== sun.getFullYear()
+    ? `${String(mon.getDate()).padStart(2, '0')}/${String(mon.getMonth() + 1).padStart(2, '0')}/${mon.getFullYear()}`
+    : `${String(mon.getDate()).padStart(2, '0')}/${String(mon.getMonth() + 1).padStart(2, '0')}`;
+  const endDisplay = `${String(sun.getDate()).padStart(2, '0')}/${String(sun.getMonth() + 1).padStart(2, '0')}/${sun.getFullYear()}`;
+
+  return {
+    startDate: toYmd(mon),
+    endDate: toYmd(sun),
+    startDisplay,
+    endDisplay,
+    weekNumber: w
+  };
+};
+
 export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdminView = false }) {
   // Current time helpers
   const todayStr = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
@@ -36,6 +79,13 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
     const d = new Date();
     d.setDate(d.getDate() - 1);
     return d.toLocaleDateString('en-CA');
+  }, []);
+
+  const currentWeekStr = useMemo(() => getIsoWeek(new Date()), []);
+  const prevWeekStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return getIsoWeek(d);
   }, []);
 
   const currentMonthStr = useMemo(() => new Date().toLocaleDateString('en-CA').slice(0, 7), []);
@@ -49,9 +99,10 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const prevYear = useMemo(() => currentYear - 1, [currentYear]);
 
-  // Filter State: Default to 'day' (Hôm nay) or 'month' (Tháng này)
-  const [timeRange, setTimeRange] = useState('day'); // 'day' | 'month' | 'year' | 'all'
+  // Filter State: Default to 'day' (Hôm nay), 'week' (Tuần này), etc.
+  const [timeRange, setTimeRange] = useState('day'); // 'day' | 'week' | 'month' | 'year' | 'all'
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [selectedWeek, setSelectedWeek] = useState(currentWeekStr);
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
 
@@ -76,6 +127,11 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
 
       if (timeRange === 'day') {
         queryParams.set('date', selectedDate);
+      } else if (timeRange === 'week') {
+        const range = parseWeekRange(selectedWeek);
+        queryParams.set('startDate', range.startDate);
+        queryParams.set('endDate', range.endDate);
+        queryParams.set('week', selectedWeek);
       } else if (timeRange === 'month') {
         queryParams.set('month', selectedMonth);
       } else if (timeRange === 'year') {
@@ -105,7 +161,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
 
   useEffect(() => {
     fetchRankings();
-  }, [timeRange, selectedDate, selectedMonth, selectedYear, selectedCategory]);
+  }, [timeRange, selectedDate, selectedWeek, selectedMonth, selectedYear, selectedCategory]);
 
   // Load available implementation contents (categories) from API
   useEffect(() => {
@@ -168,6 +224,13 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
       const isYesterday = selectedDate === yesterdayStr;
       const prefix = isToday ? 'Hôm nay - ' : isYesterday ? 'Hôm qua - ' : '';
       return `${prefix}Ngày ${d}/${m}/${y}`;
+    }
+    if (timeRange === 'week') {
+      const range = parseWeekRange(selectedWeek);
+      const isCurrentWeek = selectedWeek === currentWeekStr;
+      const isPrevWeek = selectedWeek === prevWeekStr;
+      const prefix = isCurrentWeek ? 'Tuần này - ' : isPrevWeek ? 'Tuần trước - ' : '';
+      return `${prefix}Tuần ${range.weekNumber} (${range.startDisplay} - ${range.endDisplay})`;
     }
     if (timeRange === 'month') {
       const [y, m] = selectedMonth.split('-');
@@ -267,7 +330,7 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
           </h1>
           <p style={{ color: '#fef2f2', fontSize: '0.925rem', maxWidth: '750px', lineHeight: 1.5, opacity: 0.95 }}>
             Mỗi trường hợp được tính hợp lệ khi có hình ảnh minh chứng thực hiện. 
-            Hệ thống tự động sắp xếp theo thứ tự khu vực làm nhiều nhất đến thấp nhất theo ngày, tháng, năm
+            Hệ thống tự động sắp xếp theo thứ tự khu vực làm nhiều nhất đến thấp nhất theo ngày, tuần, tháng, năm
             và có thể lọc riêng theo từng nội dung thực hiện.
           </p>
         </div>
@@ -312,6 +375,16 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
               >
                 <Calendar size={16} />
                 <span>Theo Ngày</span>
+              </button>
+
+              <button
+                type="button"
+                className={`btn ${timeRange === 'week' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.9rem', padding: '0.5rem 1.1rem', fontWeight: 700 }}
+                onClick={() => setTimeRange('week')}
+              >
+                <Calendar size={16} />
+                <span>Theo Tuần</span>
               </button>
 
               <button
@@ -374,6 +447,40 @@ export default function CskvRankingPage({ onShowToast, onNavigateUpload, isAdmin
                   onChange={(e) => setSelectedDate(e.target.value)}
                   title="Chọn ngày cụ thể"
                 />
+              </div>
+            )}
+
+            {timeRange === 'week' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className={`btn ${selectedWeek === currentWeekStr ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem' }}
+                  onClick={() => setSelectedWeek(currentWeekStr)}
+                >
+                  Tuần này
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${selectedWeek === prevWeekStr ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem' }}
+                  onClick={() => setSelectedWeek(prevWeekStr)}
+                >
+                  Tuần trước
+                </button>
+                <input
+                  type="week"
+                  className="form-control"
+                  style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', width: 'auto' }}
+                  value={selectedWeek}
+                  onChange={(e) => {
+                    if (e.target.value) setSelectedWeek(e.target.value);
+                  }}
+                  title="Chọn tuần cụ thể"
+                />
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  ({parseWeekRange(selectedWeek).startDisplay} - {parseWeekRange(selectedWeek).endDisplay})
+                </span>
               </div>
             )}
 

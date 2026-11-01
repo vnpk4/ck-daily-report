@@ -730,7 +730,7 @@ router.get('/stats', async (req, res) => {
 // -------------------------------------------------------------
 const getCskvRankings = async (req, res) => {
   try {
-    const { timeRange = 'all', date, month, year, startDate, endDate, category } = req.query;
+    const { timeRange = 'all', date, week, month, year, startDate, endDate, category } = req.query;
 
     let dateWhere = '';
     let categoryWhere = '';
@@ -740,6 +740,36 @@ const getCskvRankings = async (req, res) => {
       const targetDate = date || new Date().toISOString().split('T')[0];
       dateWhere = 'AND r.report_date = ?';
       params.push(targetDate);
+    } else if (timeRange === 'week') {
+      let sDate = startDate;
+      let eDate = endDate;
+      if ((!sDate || !eDate) && week && week.includes('-W')) {
+        const parts = week.split('-W');
+        const y = parseInt(parts[0], 10);
+        const w = parseInt(parts[1], 10);
+        const jan4 = new Date(y, 0, 4);
+        const jan4Day = jan4.getDay() || 7;
+        const monW1 = new Date(y, 0, 4 - (jan4Day - 1));
+        const mon = new Date(monW1.getFullYear(), monW1.getMonth(), monW1.getDate() + (w - 1) * 7);
+        const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+        const toYmd = (d) => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+        sDate = toYmd(mon);
+        eDate = toYmd(sun);
+      }
+      if (!sDate || !eDate) {
+        const now = new Date();
+        const day = now.getDay();
+        const diffToMonday = day === 0 ? -6 : 1 - day;
+        const mon = new Date(now);
+        mon.setDate(now.getDate() + diffToMonday);
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        const toYmd = (d) => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+        sDate = toYmd(mon);
+        eDate = toYmd(sun);
+      }
+      dateWhere = 'AND r.report_date >= ? AND r.report_date <= ?';
+      params.push(sDate, eDate);
     } else if (timeRange === 'month') {
       const targetMonth = month || new Date().toISOString().slice(0, 7); // YYYY-MM
       dateWhere = 'AND r.report_date LIKE ?';
@@ -843,7 +873,7 @@ const getCskvRankings = async (req, res) => {
         totalRegions: rankings.length,
         timeRange,
         category: category || 'all',
-        filterValue: date || month || year || 'all'
+        filterValue: date || week || (startDate && endDate ? `${startDate}..${endDate}` : null) || month || year || 'all'
       }
     });
   } catch (error) {
