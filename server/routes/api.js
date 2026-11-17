@@ -913,7 +913,6 @@ const getCskvReminders = async (req, res) => {
       year,
       startDate,
       endDate,
-      quotaStartDate,
       dailyQuota: rawQuota
     } = req.query;
 
@@ -925,14 +924,8 @@ const getCskvReminders = async (req, res) => {
 
     if (timeRange === 'day') {
       const targetDate = (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : todayStr;
+      periodStart = targetDate;
       periodEnd = targetDate;
-      const monthStart = `${targetDate.slice(0, 7)}-01`;
-      periodStart = (quotaStartDate && /^\d{4}-\d{2}-\d{2}$/.test(quotaStartDate))
-        ? quotaStartDate
-        : monthStart;
-      if (periodStart > periodEnd) {
-        periodStart = periodEnd;
-      }
     } else if (timeRange === 'week') {
       let sDate = startDate;
       let eDate = endDate;
@@ -956,31 +949,17 @@ const getCskvReminders = async (req, res) => {
         eDate = toYmd(sun);
       }
       periodStart = sDate;
-      periodEnd = eDate < todayStr ? eDate : todayStr;
+      periodEnd = eDate;
     } else if (timeRange === 'month') {
       const targetMonth = (month && /^\d{4}-\d{2}$/.test(month)) ? month : todayStr.slice(0, 7);
       const [y, m] = targetMonth.split('-').map(Number);
       const lastDay = new Date(y, m, 0).getDate();
-      const monthEnd = `${targetMonth}-${String(lastDay).padStart(2, '0')}`;
       periodStart = `${targetMonth}-01`;
-      periodEnd = monthEnd < todayStr ? monthEnd : todayStr;
+      periodEnd = `${targetMonth}-${String(lastDay).padStart(2, '0')}`;
     } else if (timeRange === 'year') {
       const targetYear = (year && /^\d{4}$/.test(year)) ? year : todayStr.slice(0, 4);
-      const yearStart = `${targetYear}-01-01`;
-      const yearEnd = `${targetYear}-12-31`;
-      periodStart = yearStart;
-      periodEnd = yearEnd < todayStr ? yearEnd : todayStr;
-
-      if (!quotaStartDate) {
-        const minRow = await db.prepare('SELECT MIN(report_date) as min_date FROM reports').get();
-        if (minRow?.min_date && minRow.min_date > periodStart && minRow.min_date <= periodEnd) {
-          periodStart = minRow.min_date;
-        }
-      }
-    }
-
-    if (timeRange !== 'day' && quotaStartDate && /^\d{4}-\d{2}-\d{2}$/.test(quotaStartDate) && quotaStartDate > periodStart) {
-      periodStart = quotaStartDate;
+      periodStart = `${targetYear}-01-01`;
+      periodEnd = `${targetYear}-12-31`;
     }
 
     const regions = await db.prepare(

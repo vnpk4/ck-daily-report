@@ -101,7 +101,6 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
   // Filter state
   const [timeRange, setTimeRange] = useState('day'); // 'day' | 'week' | 'month' | 'year'
   const [selectedDate, setSelectedDate] = useState(todayStr);
-  const [quotaStartDate, setQuotaStartDate] = useState(`${todayStr.slice(0, 7)}-01`);
   const [selectedWeek, setSelectedWeek] = useState(currentWeekStr);
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
@@ -122,15 +121,7 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [expandedRegionId, setExpandedRegionId] = useState(null);
-  const [onlyShortDays, setOnlyShortDays] = useState(true);
-
-  // Sync default quotaStartDate to start of selectedDate's month if user picks a different month in 'day' mode
-  const handleSelectedDateChange = (newDate) => {
-    setSelectedDate(newDate);
-    if (newDate && quotaStartDate > newDate) {
-      setQuotaStartDate(`${newDate.slice(0, 7)}-01`);
-    }
-  };
+  const [onlyShortDays, setOnlyShortDays] = useState(false);
 
   const fetchReminders = async () => {
     try {
@@ -142,9 +133,6 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
 
       if (timeRange === 'day') {
         queryParams.set('date', selectedDate);
-        if (quotaStartDate) {
-          queryParams.set('quotaStartDate', quotaStartDate);
-        }
       } else if (timeRange === 'week') {
         const range = parseWeekRange(selectedWeek);
         queryParams.set('startDate', range.startDate);
@@ -175,7 +163,7 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
 
   useEffect(() => {
     fetchReminders();
-  }, [timeRange, selectedDate, quotaStartDate, selectedWeek, selectedMonth, selectedYear]);
+  }, [timeRange, selectedDate, selectedWeek, selectedMonth, selectedYear]);
 
   const filteredReminders = useMemo(() => {
     if (!searchTerm.trim()) return reminders;
@@ -369,7 +357,7 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                   type="button"
                   className={`btn ${selectedDate === todayStr ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem' }}
-                  onClick={() => handleSelectedDateChange(todayStr)}
+                  onClick={() => setSelectedDate(todayStr)}
                 >
                   Hôm nay
                 </button>
@@ -377,7 +365,7 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                   type="button"
                   className={`btn ${selectedDate === yesterdayStr ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem' }}
-                  onClick={() => handleSelectedDateChange(yesterdayStr)}
+                  onClick={() => setSelectedDate(yesterdayStr)}
                 >
                   Hôm qua
                 </button>
@@ -386,23 +374,9 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                   className="form-control"
                   style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', width: 'auto' }}
                   value={selectedDate}
-                  onChange={(e) => e.target.value && handleSelectedDateChange(e.target.value)}
+                  onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
                   title="Chọn ngày xem nhắc nhở"
                 />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.25rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                    Cộng dồn từ:
-                  </span>
-                  <input
-                    type="date"
-                    className="form-control"
-                    style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', width: 'auto' }}
-                    value={quotaStartDate}
-                    max={selectedDate}
-                    onChange={(e) => e.target.value && setQuotaStartDate(e.target.value)}
-                    title="Ngày bắt đầu tính cộng dồn chỉ tiêu"
-                  />
-                </div>
               </div>
             )}
 
@@ -834,15 +808,7 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                               <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                 Lịch sử từng ngày của <span style={{ color: '#991b1b' }}>{item.region_name}</span> ({breakdown.length} ngày)
                               </div>
-                              <div style={{ display: 'flex', gap: '0.4rem' }}>
-                                <button
-                                  type="button"
-                                  className={`btn ${onlyShortDays ? 'btn-primary' : 'btn-secondary'}`}
-                                  style={{ fontSize: '0.76rem', padding: '0.28rem 0.65rem' }}
-                                  onClick={() => setOnlyShortDays(true)}
-                                >
-                                  Chỉ hiện ngày thiếu ({breakdown.filter((d) => d.daily_diff < 0).length})
-                                </button>
+                              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
                                 <button
                                   type="button"
                                   className={`btn ${!onlyShortDays ? 'btn-primary' : 'btn-secondary'}`}
@@ -851,8 +817,21 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                                 >
                                   Tất cả các ngày ({breakdown.length})
                                 </button>
+                                <button
+                                  type="button"
+                                  className={`btn ${onlyShortDays ? 'btn-primary' : 'btn-secondary'}`}
+                                  style={{ fontSize: '0.76rem', padding: '0.28rem 0.65rem' }}
+                                  onClick={() => setOnlyShortDays(true)}
+                                >
+                                  Chỉ hiện ngày thiếu ({breakdown.filter((d) => d.daily_diff < 0).length})
+                                </button>
                               </div>
                             </div>
+                            {onlyShortDays && breakdown.some((d) => d.daily_diff >= 0) && (
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', fontStyle: 'italic' }}>
+                                * Đang ẩn các ngày gửi đủ/dư ở giữa (các ngày dư vẫn được tính bù trừ vào cột Cộng dồn). Chọn "Tất cả các ngày" để xem đầy đủ.
+                              </div>
+                            )}
 
                             {visibleDays.length === 0 ? (
                               <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)', padding: '0.5rem 0' }}>
@@ -865,9 +844,9 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                                     <tr style={{ background: '#f1f5f9', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-muted)', textAlign: 'left' }}>
                                       <th style={{ padding: '0.5rem 0.75rem' }}>Ngày</th>
                                       <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Đã Gửi / Định Mức</th>
-                                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Chênh Lệch Ngày</th>
-                                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Cần Gửi (Sau Bù Trừ)</th>
-                                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>Lũy Kế Cuối Ngày</th>
+                                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Thiếu / Dư Riêng Ngày Đó</th>
+                                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Mục Tiêu Ngày Đó (Sau Bù Trừ)</th>
+                                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>Cộng Dồn Tính Đến Hết Ngày</th>
                                     </tr>
                                   </thead>
                                   <tbody>
