@@ -101,6 +101,9 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
   // Filter state
   const [timeRange, setTimeRange] = useState('day'); // 'day' | 'week' | 'month' | 'year'
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [isCustomRange, setIsCustomRange] = useState(false);
+  const [rangeStartDate, setRangeStartDate] = useState(yesterdayStr);
+  const [rangeEndDate, setRangeEndDate] = useState(todayStr);
   const [selectedWeek, setSelectedWeek] = useState(currentWeekStr);
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
@@ -126,14 +129,18 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
   const fetchReminders = async () => {
     try {
       setLoading(true);
+      const effectiveRange = timeRange === 'day' && isCustomRange ? 'custom' : timeRange;
       const queryParams = new URLSearchParams({
-        timeRange,
+        timeRange: effectiveRange,
         dailyQuota: String(DAILY_QUOTA)
       });
 
-      if (timeRange === 'day') {
+      if (effectiveRange === 'day') {
         queryParams.set('date', selectedDate);
-      } else if (timeRange === 'week') {
+      } else if (effectiveRange === 'custom') {
+        queryParams.set('startDate', rangeStartDate);
+        queryParams.set('endDate', rangeEndDate);
+      } else if (effectiveRange === 'week') {
         const range = parseWeekRange(selectedWeek);
         queryParams.set('startDate', range.startDate);
         queryParams.set('endDate', range.endDate);
@@ -163,7 +170,7 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
 
   useEffect(() => {
     fetchReminders();
-  }, [timeRange, selectedDate, selectedWeek, selectedMonth, selectedYear]);
+  }, [timeRange, selectedDate, isCustomRange, rangeStartDate, rangeEndDate, selectedWeek, selectedMonth, selectedYear]);
 
   const filteredReminders = useMemo(() => {
     if (!searchTerm.trim()) return reminders;
@@ -177,6 +184,11 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
 
   const getTimeRangeLabel = () => {
     if (timeRange === 'day') {
+      if (isCustomRange) {
+        const s = rangeStartDate <= rangeEndDate ? rangeStartDate : rangeEndDate;
+        const e = rangeStartDate <= rangeEndDate ? rangeEndDate : rangeStartDate;
+        return `Từ ${formatYmdToVi(s)} đến ${formatYmdToVi(e)}`;
+      }
       const isToday = selectedDate === todayStr;
       const isYesterday = selectedDate === yesterdayStr;
       const prefix = isToday ? 'Hôm nay - ' : isYesterday ? 'Hôm qua - ' : '';
@@ -355,28 +367,70 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                 <button
                   type="button"
-                  className={`btn ${selectedDate === todayStr ? 'btn-primary' : 'btn-secondary'}`}
+                  className={`btn ${!isCustomRange && selectedDate === todayStr ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem' }}
-                  onClick={() => setSelectedDate(todayStr)}
+                  onClick={() => {
+                    setIsCustomRange(false);
+                    setSelectedDate(todayStr);
+                  }}
                 >
                   Hôm nay
                 </button>
                 <button
                   type="button"
-                  className={`btn ${selectedDate === yesterdayStr ? 'btn-primary' : 'btn-secondary'}`}
+                  className={`btn ${!isCustomRange && selectedDate === yesterdayStr ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem' }}
-                  onClick={() => setSelectedDate(yesterdayStr)}
+                  onClick={() => {
+                    setIsCustomRange(false);
+                    setSelectedDate(yesterdayStr);
+                  }}
                 >
                   Hôm qua
                 </button>
-                <input
-                  type="date"
-                  className="form-control"
-                  style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', width: 'auto' }}
-                  value={selectedDate}
-                  onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
-                  title="Chọn ngày xem nhắc nhở"
-                />
+                <button
+                  type="button"
+                  className={`btn ${isCustomRange ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem' }}
+                  onClick={() => setIsCustomRange(true)}
+                >
+                  Từ ngày → Đến ngày
+                </button>
+                {!isCustomRange ? (
+                  <input
+                    type="date"
+                    className="form-control"
+                    style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', width: 'auto' }}
+                    value={selectedDate}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setIsCustomRange(false);
+                        setSelectedDate(e.target.value);
+                      }
+                    }}
+                    title="Chọn ngày cụ thể"
+                  />
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Từ:</span>
+                    <input
+                      type="date"
+                      className="form-control"
+                      style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', width: 'auto' }}
+                      value={rangeStartDate}
+                      onChange={(e) => e.target.value && setRangeStartDate(e.target.value)}
+                      title="Từ ngày"
+                    />
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Đến:</span>
+                    <input
+                      type="date"
+                      className="form-control"
+                      style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', width: 'auto' }}
+                      value={rangeEndDate}
+                      onChange={(e) => e.target.value && setRangeEndDate(e.target.value)}
+                      title="Đến ngày"
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -679,7 +733,7 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                   <th style={{ padding: '0.75rem 0.65rem', width: '50px' }}>STT</th>
                   <th style={{ padding: '0.75rem 0.75rem' }}>Người Gửi (CSKV)</th>
                   <th style={{ padding: '0.75rem 0.75rem', textAlign: 'center' }}>Đã Gửi / Tổng Chỉ Tiêu</th>
-                  {timeRange === 'day' && (
+                  {timeRange === 'day' && !isCustomRange && (
                     <th style={{ padding: '0.75rem 0.75rem', textAlign: 'center' }}>Chi Tiết Ngày</th>
                   )}
                   <th style={{ padding: '0.75rem 0.75rem', textAlign: 'right' }}>Chưa Hoàn Thành</th>
@@ -697,7 +751,7 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                   const visibleDays = onlyShortDays
                     ? breakdown.filter((d) => d.daily_diff < 0)
                     : breakdown;
-                  const colCount = timeRange === 'day' ? 6 : 5;
+                  const colCount = timeRange === 'day' && !isCustomRange ? 6 : 5;
 
                   return (
                     <React.Fragment key={item.region_id}>
@@ -750,7 +804,7 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                             />
                           </div>
                         </td>
-                        {timeRange === 'day' && (
+                        {timeRange === 'day' && !isCustomRange && (
                           <td style={{ padding: '0.85rem 0.75rem', textAlign: 'center', fontSize: '0.83rem', color: 'var(--text-secondary)' }}>
                             <div>
                               Hôm đó: <strong>{item.target_date_uploaded}</strong> / {item.target_date_quota}

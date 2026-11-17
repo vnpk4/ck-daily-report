@@ -960,6 +960,14 @@ const getCskvReminders = async (req, res) => {
       const targetYear = (year && /^\d{4}$/.test(year)) ? year : todayStr.slice(0, 4);
       periodStart = `${targetYear}-01-01`;
       periodEnd = `${targetYear}-12-31`;
+    } else if (timeRange === 'custom') {
+      let sDate = (startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate)) ? startDate : todayStr;
+      let eDate = (endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate)) ? endDate : sDate;
+      if (sDate > eDate) {
+        [sDate, eDate] = [eDate, sDate];
+      }
+      periodStart = sDate;
+      periodEnd = eDate;
     }
 
     const regions = await db.prepare(
