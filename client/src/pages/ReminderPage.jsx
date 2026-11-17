@@ -10,7 +10,9 @@ import {
   Copy,
   Check,
   Send,
-  Users
+  Users,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 const DAILY_QUOTA = 15;
@@ -119,6 +121,8 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
   });
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [expandedRegionId, setExpandedRegionId] = useState(null);
+  const [onlyShortDays, setOnlyShortDays] = useState(true);
 
   // Sync default quotaStartDate to start of selectedDate's month if user picks a different month in 'day' mode
   const handleSelectedDateChange = (newDate) => {
@@ -290,9 +294,10 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
           >
             THEO DÕI & NHẮC NHỞ CHƯA ĐẠT CHỈ TIÊU
           </h1>
-          <p style={{ color: '#fef2f2', fontSize: '0.92rem', maxWidth: '780px', lineHeight: 1.5, opacity: 0.95 }}>
-            Mỗi ngày mỗi đồng chí cần gửi đủ <strong>{DAILY_QUOTA} ảnh</strong>. Nếu ngày trước gửi thiếu, số thiếu sẽ
-            <strong> tự động cộng dồn</strong> sang ngày hôm sau. Danh sách bên dưới chỉ hiển thị những đồng chí còn thiếu.
+          <p style={{ color: '#fef2f2', fontSize: '0.92rem', maxWidth: '820px', lineHeight: 1.5, opacity: 0.95 }}>
+            Mỗi ngày mỗi đồng chí cần gửi đủ <strong>{DAILY_QUOTA} ảnh</strong>. Nếu gửi thiếu sẽ
+            <strong> cộng dồn</strong> sang ngày sau; nếu gửi vượt chỉ tiêu (vd 25/15) sẽ <strong>tự động bù trừ (+10)</strong> cho ngày tiếp theo.
+            Bấm vào từng đồng chí để xem chi tiết ngày nào thiếu bao nhiêu trường hợp.
           </p>
         </div>
       </div>
@@ -704,6 +709,7 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                     <th style={{ padding: '0.75rem 0.75rem', textAlign: 'center' }}>Chi Tiết Ngày</th>
                   )}
                   <th style={{ padding: '0.75rem 0.75rem', textAlign: 'right' }}>Chưa Hoàn Thành</th>
+                  <th style={{ padding: '0.75rem 0.5rem', width: '110px', textAlign: 'center' }}>Theo Ngày</th>
                 </tr>
               </thead>
               <tbody>
@@ -712,78 +718,200 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                     item.total_quota > 0
                       ? Math.min(100, Math.round((item.total_uploaded / item.total_quota) * 100))
                       : 0;
+                  const isExpanded = expandedRegionId === item.region_id;
+                  const breakdown = Array.isArray(item.daily_breakdown) ? item.daily_breakdown : [];
+                  const visibleDays = onlyShortDays
+                    ? breakdown.filter((d) => d.daily_diff < 0)
+                    : breakdown;
+                  const colCount = timeRange === 'day' ? 6 : 5;
+
                   return (
-                    <tr
-                      key={item.region_id}
-                      style={{
-                        borderBottom: '1px solid var(--border-subtle)',
-                        transition: 'background 0.15s ease'
-                      }}
-                    >
-                      <td style={{ padding: '0.85rem 0.65rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-                        {idx + 1}
-                      </td>
-                      <td style={{ padding: '0.85rem 0.75rem' }}>
-                        <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.98rem' }}>
-                          {item.region_name}
-                        </div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{item.region_code}</div>
-                      </td>
-                      <td style={{ padding: '0.85rem 0.75rem', textAlign: 'center' }}>
-                        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                          {item.total_uploaded} / {item.total_quota}
-                        </div>
-                        <div
-                          style={{
-                            width: '120px',
-                            height: '6px',
-                            background: '#e2e8f0',
-                            borderRadius: '999px',
-                            margin: '0.35rem auto 0',
-                            overflow: 'hidden'
-                          }}
-                        >
+                    <React.Fragment key={item.region_id}>
+                      <tr
+                        onClick={() => setExpandedRegionId(isExpanded ? null : item.region_id)}
+                        style={{
+                          borderBottom: isExpanded ? 'none' : '1px solid var(--border-subtle)',
+                          transition: 'background 0.15s ease',
+                          cursor: 'pointer',
+                          background: isExpanded ? 'rgba(254, 242, 242, 0.5)' : 'transparent'
+                        }}
+                      >
+                        <td style={{ padding: '0.85rem 0.65rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                          {idx + 1}
+                        </td>
+                        <td style={{ padding: '0.85rem 0.75rem' }}>
+                          <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.98rem' }}>
+                            {item.region_name}
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            {item.region_code}
+                            {item.short_days_count > 0 && (
+                              <span style={{ marginLeft: '0.5rem', color: '#b45309', fontWeight: 600 }}>
+                                • {item.short_days_count} ngày chưa đủ {DAILY_QUOTA}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ padding: '0.85rem 0.75rem', textAlign: 'center' }}>
+                          <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {item.total_uploaded} / {item.total_quota}
+                          </div>
                           <div
                             style={{
-                              height: '100%',
-                              width: `${pct}%`,
-                              background: pct >= 80 ? '#f59e0b' : '#dc2626',
-                              borderRadius: '999px'
+                              width: '120px',
+                              height: '6px',
+                              background: '#e2e8f0',
+                              borderRadius: '999px',
+                              margin: '0.35rem auto 0',
+                              overflow: 'hidden'
                             }}
-                          />
-                        </div>
-                      </td>
-                      {timeRange === 'day' && (
-                        <td style={{ padding: '0.85rem 0.75rem', textAlign: 'center', fontSize: '0.83rem', color: 'var(--text-secondary)' }}>
-                          <div>
-                            Hôm đó: <strong>{item.target_date_uploaded}</strong> / {item.target_date_quota}
+                          >
+                            <div
+                              style={{
+                                height: '100%',
+                                width: `${pct}%`,
+                                background: pct >= 80 ? '#f59e0b' : '#dc2626',
+                                borderRadius: '999px'
+                              }}
+                            />
                           </div>
-                          {item.carried_over > 0 && (
-                            <div style={{ color: '#b45309', fontSize: '0.76rem', fontWeight: 600 }}>
-                              (Gồm +{item.carried_over} thiếu từ ngày trước)
-                            </div>
-                          )}
                         </td>
+                        {timeRange === 'day' && (
+                          <td style={{ padding: '0.85rem 0.75rem', textAlign: 'center', fontSize: '0.83rem', color: 'var(--text-secondary)' }}>
+                            <div>
+                              Hôm đó: <strong>{item.target_date_uploaded}</strong> / {item.target_date_quota}
+                            </div>
+                            {item.carried_over > 0 && (
+                              <div style={{ color: '#b45309', fontSize: '0.76rem', fontWeight: 600 }}>
+                                (Gồm +{item.carried_over} thiếu từ ngày trước)
+                              </div>
+                            )}
+                            {item.carried_over < 0 && (
+                              <div style={{ color: 'var(--accent-emerald)', fontSize: '0.76rem', fontWeight: 600 }}>
+                                (Đã bù trừ {Math.abs(item.carried_over)} dư từ ngày trước)
+                              </div>
+                            )}
+                          </td>
+                        )}
+                        <td style={{ padding: '0.85rem 0.75rem', textAlign: 'right' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background: 'rgba(220, 38, 38, 0.12)',
+                              color: '#dc2626',
+                              border: '1px solid rgba(220, 38, 38, 0.25)',
+                              padding: '0.35rem 0.85rem',
+                              borderRadius: 'var(--radius-full)',
+                              fontWeight: 800,
+                              fontSize: '0.88rem'
+                            }}
+                          >
+                            Thiếu {item.missing_count} trường hợp
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.85rem 0.5rem', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.78rem' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedRegionId(isExpanded ? null : item.region_id);
+                            }}
+                          >
+                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            <span>{isExpanded ? 'Thu gọn' : 'Chi tiết'}</span>
+                          </button>
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', background: '#f8fafc' }}>
+                          <td colSpan={colCount} style={{ padding: '0.85rem 1rem 1.15rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                              <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                Lịch sử từng ngày của <span style={{ color: '#991b1b' }}>{item.region_name}</span> ({breakdown.length} ngày)
+                              </div>
+                              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                <button
+                                  type="button"
+                                  className={`btn ${onlyShortDays ? 'btn-primary' : 'btn-secondary'}`}
+                                  style={{ fontSize: '0.76rem', padding: '0.28rem 0.65rem' }}
+                                  onClick={() => setOnlyShortDays(true)}
+                                >
+                                  Chỉ hiện ngày thiếu ({breakdown.filter((d) => d.daily_diff < 0).length})
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`btn ${!onlyShortDays ? 'btn-primary' : 'btn-secondary'}`}
+                                  style={{ fontSize: '0.76rem', padding: '0.28rem 0.65rem' }}
+                                  onClick={() => setOnlyShortDays(false)}
+                                >
+                                  Tất cả các ngày ({breakdown.length})
+                                </button>
+                              </div>
+                            </div>
+
+                            {visibleDays.length === 0 ? (
+                              <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)', padding: '0.5rem 0' }}>
+                                Không có ngày nào bị thiếu trong danh sách lọc.
+                              </div>
+                            ) : (
+                              <div style={{ overflowX: 'auto', maxHeight: '300px', overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: '8px', background: '#ffffff' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+                                  <thead>
+                                    <tr style={{ background: '#f1f5f9', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                                      <th style={{ padding: '0.5rem 0.75rem' }}>Ngày</th>
+                                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Đã Gửi / Định Mức</th>
+                                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Chênh Lệch Ngày</th>
+                                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Cần Gửi (Sau Bù Trừ)</th>
+                                      <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>Lũy Kế Cuối Ngày</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {visibleDays.map((d) => {
+                                      const isShort = d.daily_diff < 0;
+                                      const isSurplus = d.daily_diff > 0;
+                                      return (
+                                        <tr key={d.date} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                          <td style={{ padding: '0.45rem 0.75rem', fontWeight: 600 }}>
+                                            {formatYmdToVi(d.date)}
+                                          </td>
+                                          <td style={{ padding: '0.45rem 0.75rem', textAlign: 'center' }}>
+                                            <strong>{d.uploaded}</strong> / {d.quota}
+                                          </td>
+                                          <td style={{ padding: '0.45rem 0.75rem', textAlign: 'center', fontWeight: 700, color: isShort ? '#dc2626' : isSurplus ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
+                                            {isShort
+                                              ? `Thiếu ${Math.abs(d.daily_diff)}`
+                                              : isSurplus
+                                              ? `+${d.daily_diff} (Dư bù trừ)`
+                                              : 'Đủ (0)'}
+                                          </td>
+                                          <td style={{ padding: '0.45rem 0.75rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                            {d.effective_target}
+                                          </td>
+                                          <td style={{ padding: '0.45rem 0.75rem', textAlign: 'right', fontWeight: 700 }}>
+                                            {d.cumulative_balance < 0 ? (
+                                              <span style={{ color: '#dc2626' }}>Còn thiếu {Math.abs(d.cumulative_balance)}</span>
+                                            ) : d.cumulative_balance > 0 ? (
+                                              <span style={{ color: 'var(--accent-emerald)' }}>Dư +{d.cumulative_balance}</span>
+                                            ) : (
+                                              <span style={{ color: 'var(--accent-emerald)' }}>Đủ (0)</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
                       )}
-                      <td style={{ padding: '0.85rem 0.75rem', textAlign: 'right' }}>
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            background: 'rgba(220, 38, 38, 0.12)',
-                            color: '#dc2626',
-                            border: '1px solid rgba(220, 38, 38, 0.25)',
-                            padding: '0.35rem 0.85rem',
-                            borderRadius: 'var(--radius-full)',
-                            fontWeight: 800,
-                            fontSize: '0.88rem'
-                          }}
-                        >
-                          Thiếu {item.missing_count} trường hợp
-                        </span>
-                      </td>
-                    </tr>
+                    </React.Fragment>
                   );
                 })}
               </tbody>

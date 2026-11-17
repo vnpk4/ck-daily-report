@@ -1039,23 +1039,43 @@ const getCskvReminders = async (req, res) => {
     let completedCount = 0;
 
     for (const reg of regions) {
-      let prevDeficit = 0;
+      let balance = 0; // positive = surplus credit carried forward, negative = deficit carried forward
       let totalUploaded = 0;
       let targetDateUploaded = 0;
-      let carriedOverBeforeTarget = 0;
+      let prevBalanceBeforeTarget = 0;
+      let shortDaysCount = 0;
+      const dailyBreakdown = [];
 
       for (let i = 0; i < dates.length; i++) {
         const d = dates[i];
         const uploaded = countsMap[reg.id]?.[d] || 0;
-        totalUploaded += uploaded;
+        const dailyDiff = uploaded - dailyQuota;
+        const effectiveTarget = Math.max(0, dailyQuota - balance);
+
         if (i === dates.length - 1) {
-          carriedOverBeforeTarget = prevDeficit;
+          prevBalanceBeforeTarget = balance;
           targetDateUploaded = uploaded;
         }
-        prevDeficit = Math.max(0, dailyQuota + prevDeficit - uploaded);
+
+        if (uploaded < dailyQuota) {
+          shortDaysCount++;
+        }
+
+        totalUploaded += uploaded;
+        balance += dailyDiff;
+
+        dailyBreakdown.push({
+          date: d,
+          quota: dailyQuota,
+          uploaded,
+          daily_diff: dailyDiff,
+          effective_target: effectiveTarget,
+          cumulative_balance: balance,
+          cumulative_missing: Math.max(0, -balance)
+        });
       }
 
-      const missingCount = prevDeficit;
+      const missingCount = Math.max(0, -balance);
       if (missingCount > 0) {
         missingList.push({
           region_id: reg.id,
@@ -1066,8 +1086,10 @@ const getCskvReminders = async (req, res) => {
           total_uploaded: totalUploaded,
           total_quota: dates.length * dailyQuota,
           target_date_uploaded: targetDateUploaded,
-          target_date_quota: dailyQuota + carriedOverBeforeTarget,
-          carried_over: carriedOverBeforeTarget
+          target_date_quota: Math.max(0, dailyQuota - prevBalanceBeforeTarget),
+          carried_over: -prevBalanceBeforeTarget, // >0: thiếu từ trước, <0: dư bù trừ từ trước
+          short_days_count: shortDaysCount,
+          daily_breakdown: dailyBreakdown
         });
       } else {
         completedCount++;
