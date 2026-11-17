@@ -107,6 +107,7 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
   const [selectedWeek, setSelectedWeek] = useState(currentWeekStr);
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
+  const [statusFilter, setStatusFilter] = useState('incomplete'); // 'incomplete' | 'completed' | 'all'
   const [searchTerm, setSearchTerm] = useState('');
 
   // Data state
@@ -173,14 +174,22 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
   }, [timeRange, selectedDate, isCustomRange, rangeStartDate, rangeEndDate, selectedWeek, selectedMonth, selectedYear]);
 
   const filteredReminders = useMemo(() => {
-    if (!searchTerm.trim()) return reminders;
-    const q = searchTerm.trim().toLowerCase();
-    return reminders.filter(
-      (r) =>
-        (r.region_name && r.region_name.toLowerCase().includes(q)) ||
-        (r.region_code && r.region_code.toLowerCase().includes(q))
-    );
-  }, [reminders, searchTerm]);
+    let list = reminders;
+    if (statusFilter === 'incomplete') {
+      list = list.filter((r) => !r.is_completed);
+    } else if (statusFilter === 'completed') {
+      list = list.filter((r) => r.is_completed);
+    }
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
+      list = list.filter(
+        (r) =>
+          (r.region_name && r.region_name.toLowerCase().includes(q)) ||
+          (r.region_code && r.region_code.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [reminders, statusFilter, searchTerm]);
 
   const getTimeRangeLabel = () => {
     if (timeRange === 'day') {
@@ -217,18 +226,42 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
 
   const handleCopyReminder = () => {
     const timeLabel = getTimeRangeLabel();
-    let text = `🔔 NHẮC NHỞ CHỈ TIÊU CSKV - ${timeLabel.toUpperCase()}\n`;
-    text += `Định mức: ${DAILY_QUOTA} trường hợp/ngày (có cộng dồn ngày thiếu)\n`;
+    const titlePrefix =
+      statusFilter === 'completed'
+        ? '✅ DANH SÁCH ĐẠT CHỈ TIÊU CSKV'
+        : '🔔 NHẮC NHỞ CHỈ TIÊU CSKV';
+    let text = `${titlePrefix} - ${timeLabel.toUpperCase()}\n`;
+    text += `Định mức: ${DAILY_QUOTA} trường hợp/ngày\n`;
     if (meta.periodStart && meta.periodEnd) {
       text += `Tính từ: ${formatYmdToVi(meta.periodStart)} đến ${formatYmdToVi(meta.periodEnd)} (${meta.daysCount || 0} ngày)\n`;
     }
     text += `------------------------------------\n`;
 
-    if (reminders.length === 0) {
+    const incompleteItems = reminders.filter((r) => !r.is_completed);
+    const completedItems = reminders.filter((r) => r.is_completed);
+
+    if (statusFilter === 'completed') {
+      if (completedItems.length === 0) {
+        text += `Chưa có đồng chí nào đạt đủ chỉ tiêu trong kỳ này.\n`;
+      } else {
+        text += `Danh sách đã hoàn thành (${completedItems.length} đồng chí):\n`;
+        completedItems.forEach((item, idx) => {
+          text += `${idx + 1}. ${item.region_name}: đã gửi ${item.total_uploaded}/${item.total_quota}${item.surplus_count > 0 ? ` (dư +${item.surplus_count})` : ''}\n`;
+        });
+      }
+    } else if (statusFilter === 'all') {
+      text += `Tổng hợp (${reminders.length} đồng chí):\n`;
+      reminders.forEach((item, idx) => {
+        const statusText = item.is_completed
+          ? `✅ Đạt (${item.total_uploaded}/${item.total_quota})`
+          : `⚠️ Thiếu ${item.missing_count} (${item.total_uploaded}/${item.total_quota})`;
+        text += `${idx + 1}. ${item.region_name}: ${statusText}\n`;
+      });
+    } else if (incompleteItems.length === 0) {
       text += `✅ Tất cả ${meta.totalRegions || 22} đồng chí đã hoàn thành đủ chỉ tiêu!\n`;
     } else {
-      text += `Danh sách chưa hoàn thành (${reminders.length} đồng chí):\n`;
-      reminders.forEach((item, idx) => {
+      text += `Danh sách chưa hoàn thành (${incompleteItems.length} đồng chí):\n`;
+      incompleteItems.forEach((item, idx) => {
         text += `${idx + 1}. ${item.region_name}: còn thiếu ${item.missing_count} trường hợp (đã gửi ${item.total_uploaded}/${item.total_quota})\n`;
       });
     }
@@ -695,11 +728,53 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
 
       {/* Main List */}
       <div className="glass-card" style={{ padding: '1.25rem 1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Bell size={18} color="#dc2626" />
-            <span>Danh Sách Chưa Hoàn Thành Chỉ Tiêu ({filteredReminders.length})</span>
+            {statusFilter === 'completed' ? (
+              <CheckCircle2 size={18} color="var(--accent-emerald)" />
+            ) : (
+              <Bell size={18} color="#dc2626" />
+            )}
+            <span>
+              {statusFilter === 'incomplete'
+                ? `Danh Sách Chưa Hoàn Thành (${filteredReminders.length})`
+                : statusFilter === 'completed'
+                ? `Danh Sách Đã Hoàn Thành (${filteredReminders.length})`
+                : `Tất Cả Cán Bộ (${filteredReminders.length})`}
+            </span>
           </h2>
+
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className={`btn ${statusFilter === 'incomplete' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}
+              onClick={() => setStatusFilter('incomplete')}
+            >
+              Chưa hoàn thành ({meta.incompleteCount || 0})
+            </button>
+            <button
+              type="button"
+              className={`btn ${statusFilter === 'completed' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{
+                fontSize: '0.82rem',
+                padding: '0.4rem 0.85rem',
+                background: statusFilter === 'completed' ? 'var(--accent-emerald)' : undefined,
+                borderColor: statusFilter === 'completed' ? 'var(--accent-emerald)' : undefined
+              }}
+              onClick={() => setStatusFilter('completed')}
+            >
+              Đã hoàn thành ({meta.completedCount || 0})
+            </button>
+            <button
+              type="button"
+              className={`btn ${statusFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontSize: '0.82rem', padding: '0.4rem 0.85rem' }}
+              onClick={() => setStatusFilter('all')}
+            >
+              Tất cả ({meta.totalRegions || 0})
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -709,7 +784,15 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
           </div>
         ) : filteredReminders.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-            {reminders.length === 0 ? (
+            {searchTerm.trim() ? (
+              <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+                Không tìm thấy cán bộ nào khớp với từ khóa "{searchTerm}".
+              </p>
+            ) : statusFilter === 'completed' ? (
+              <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+                Chưa có đồng chí nào hoàn thành đủ chỉ tiêu trong kỳ này.
+              </p>
+            ) : (
               <>
                 <CheckCircle2 size={48} color="var(--accent-emerald)" style={{ marginBottom: '0.75rem' }} />
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--accent-emerald)' }}>
@@ -719,10 +802,6 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                   Tất cả {meta.totalRegions || 22} đồng chí đều đã hoàn thành đủ định mức trong kỳ này.
                 </p>
               </>
-            ) : (
-              <p style={{ color: 'var(--text-muted)', margin: 0 }}>
-                Không tìm thấy cán bộ nào khớp với từ khóa "{searchTerm}".
-              </p>
             )}
           </div>
         ) : (
@@ -736,7 +815,7 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                   {timeRange === 'day' && !isCustomRange && (
                     <th style={{ padding: '0.75rem 0.75rem', textAlign: 'center' }}>Chi Tiết Ngày</th>
                   )}
-                  <th style={{ padding: '0.75rem 0.75rem', textAlign: 'right' }}>Chưa Hoàn Thành</th>
+                  <th style={{ padding: '0.75rem 0.75rem', textAlign: 'right' }}>Trạng Thái</th>
                   <th style={{ padding: '0.75rem 0.5rem', width: '110px', textAlign: 'center' }}>Theo Ngày</th>
                 </tr>
               </thead>
@@ -798,7 +877,11 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                               style={{
                                 height: '100%',
                                 width: `${pct}%`,
-                                background: pct >= 80 ? '#f59e0b' : '#dc2626',
+                                background: item.is_completed
+                                  ? 'var(--accent-emerald)'
+                                  : pct >= 80
+                                  ? '#f59e0b'
+                                  : '#dc2626',
                                 borderRadius: '999px'
                               }}
                             />
@@ -822,22 +905,41 @@ export default function ReminderPage({ onShowToast, onNavigateUpload }) {
                           </td>
                         )}
                         <td style={{ padding: '0.85rem 0.75rem', textAlign: 'right' }}>
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              background: 'rgba(220, 38, 38, 0.12)',
-                              color: '#dc2626',
-                              border: '1px solid rgba(220, 38, 38, 0.25)',
-                              padding: '0.35rem 0.85rem',
-                              borderRadius: 'var(--radius-full)',
-                              fontWeight: 800,
-                              fontSize: '0.88rem'
-                            }}
-                          >
-                            Thiếu {item.missing_count} trường hợp
-                          </span>
+                          {item.is_completed ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                background: 'rgba(16, 185, 129, 0.12)',
+                                color: 'var(--accent-emerald)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                padding: '0.35rem 0.85rem',
+                                borderRadius: 'var(--radius-full)',
+                                fontWeight: 800,
+                                fontSize: '0.88rem'
+                              }}
+                            >
+                              Đã hoàn thành{item.surplus_count > 0 ? ` (+${item.surplus_count} dư)` : ''}
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                background: 'rgba(220, 38, 38, 0.12)',
+                                color: '#dc2626',
+                                border: '1px solid rgba(220, 38, 38, 0.25)',
+                                padding: '0.35rem 0.85rem',
+                                borderRadius: 'var(--radius-full)',
+                                fontWeight: 800,
+                                fontSize: '0.88rem'
+                              }}
+                            >
+                              Thiếu {item.missing_count} trường hợp
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '0.85rem 0.5rem', textAlign: 'center' }}>
                           <button

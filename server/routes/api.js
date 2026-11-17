@@ -1022,8 +1022,9 @@ const getCskvReminders = async (req, res) => {
       countsMap[row.region_id][row.report_date] = Number(row.image_count || 0);
     }
 
-    const missingList = [];
+    const items = [];
     let completedCount = 0;
+    let incompleteCount = 0;
 
     for (const reg of regions) {
       let balance = 0; // positive = surplus credit carried forward, negative = deficit carried forward
@@ -1063,37 +1064,50 @@ const getCskvReminders = async (req, res) => {
       }
 
       const missingCount = Math.max(0, -balance);
-      if (missingCount > 0) {
-        missingList.push({
-          region_id: reg.id,
-          region_name: reg.name,
-          region_code: reg.code,
-          display_order: reg.display_order,
-          missing_count: missingCount,
-          total_uploaded: totalUploaded,
-          total_quota: dates.length * dailyQuota,
-          target_date_uploaded: targetDateUploaded,
-          target_date_quota: Math.max(0, dailyQuota - prevBalanceBeforeTarget),
-          carried_over: -prevBalanceBeforeTarget, // >0: thiếu từ trước, <0: dư bù trừ từ trước
-          short_days_count: shortDaysCount,
-          daily_breakdown: dailyBreakdown
-        });
-      } else {
+      const surplusCount = Math.max(0, balance);
+      const isCompleted = missingCount === 0;
+
+      if (isCompleted) {
         completedCount++;
+      } else {
+        incompleteCount++;
       }
+
+      items.push({
+        region_id: reg.id,
+        region_name: reg.name,
+        region_code: reg.code,
+        display_order: reg.display_order,
+        is_completed: isCompleted,
+        missing_count: missingCount,
+        surplus_count: surplusCount,
+        total_uploaded: totalUploaded,
+        total_quota: dates.length * dailyQuota,
+        target_date_uploaded: targetDateUploaded,
+        target_date_quota: Math.max(0, dailyQuota - prevBalanceBeforeTarget),
+        carried_over: -prevBalanceBeforeTarget,
+        short_days_count: shortDaysCount,
+        daily_breakdown: dailyBreakdown
+      });
     }
 
-    // Sort highest missing count first
-    missingList.sort((a, b) => {
-      if (b.missing_count !== a.missing_count) return b.missing_count - a.missing_count;
+    // Sort: incomplete (highest missing first), then completed (highest uploaded first)
+    items.sort((a, b) => {
+      if (a.is_completed !== b.is_completed) return a.is_completed ? 1 : -1;
+      if (!a.is_completed && b.missing_count !== a.missing_count) {
+        return b.missing_count - a.missing_count;
+      }
+      if (a.is_completed && b.total_uploaded !== a.total_uploaded) {
+        return b.total_uploaded - a.total_uploaded;
+      }
       return (a.display_order || 0) - (b.display_order || 0);
     });
 
-    const totalMissing = missingList.reduce((sum, item) => sum + item.missing_count, 0);
+    const totalMissing = items.reduce((sum, item) => sum + item.missing_count, 0);
 
     res.json({
       success: true,
-      data: missingList,
+      data: items,
       meta: {
         dailyQuota,
         periodStart,
@@ -1101,7 +1115,7 @@ const getCskvReminders = async (req, res) => {
         daysCount: dates.length,
         totalRegions: regions.length,
         completedCount,
-        incompleteCount: missingList.length,
+        incompleteCount,
         totalMissing,
         timeRange
       }
