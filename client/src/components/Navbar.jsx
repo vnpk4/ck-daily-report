@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, UploadCloud, Trophy } from 'lucide-react';
+import { ShieldCheck, UploadCloud, Trophy, Bell } from 'lucide-react';
 
 export default function Navbar({ currentTab, setCurrentTab }) {
   return (
@@ -40,6 +40,15 @@ export default function Navbar({ currentTab, setCurrentTab }) {
           <Trophy size={16} />
           <span className="nav-text-full">Bảng Xếp Hạng</span>
           <span className="nav-text-short">Xếp Hạng</span>
+        </button>
+
+        <button
+          className={`nav-btn ${currentTab === 'reminder' ? 'active' : ''}`}
+          onClick={() => setCurrentTab('reminder')}
+        >
+          <Bell size={16} />
+          <span className="nav-text-full">Nhắc Nhở</span>
+          <span className="nav-text-short">Nhắc Nhở</span>
         </button>
 
         <button

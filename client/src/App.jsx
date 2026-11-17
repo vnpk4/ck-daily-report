@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Navbar from './components/Navbar';
 import GuestUploadPage from './pages/GuestUploadPage';
 import CskvRankingPage from './pages/CskvRankingPage';
+import ReminderPage from './pages/ReminderPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import Toast from './components/Toast';
 
@@ -39,6 +40,12 @@ export default function App() {
             onShowToast={showToast} 
             onNavigateUpload={() => setCurrentTab('guest')} 
             isAdminView={false} 
+          />
+        )}
+        {currentTab === 'reminder' && (
+          <ReminderPage 
+            onShowToast={showToast} 
+            onNavigateUpload={() => setCurrentTab('guest')} 
           />
         )}
         {currentTab === 'admin' && (

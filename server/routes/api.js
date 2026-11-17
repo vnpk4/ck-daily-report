@@ -885,4 +885,225 @@ const getCskvRankings = async (req, res) => {
 router.get('/cskv-rankings', getCskvRankings);
 router.get('/admin/cskv-rankings', getCskvRankings);
 
+// -------------------------------------------------------------
+// 7. CSKV Quota Reminders API (15 cases/day with cumulative rollover)
+// -------------------------------------------------------------
+const parseIsoWeekDates = (weekStr) => {
+  if (!weekStr || !weekStr.includes('-W')) return null;
+  const parts = weekStr.split('-W');
+  const y = parseInt(parts[0], 10);
+  const w = parseInt(parts[1], 10);
+  if (!Number.isFinite(y) || !Number.isFinite(w)) return null;
+  const jan4 = new Date(y, 0, 4);
+  const jan4Day = jan4.getDay() || 7;
+  const monW1 = new Date(y, 0, 4 - (jan4Day - 1));
+  const mon = new Date(monW1.getFullYear(), monW1.getMonth(), monW1.getDate() + (w - 1) * 7);
+  const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+  const toYmd = (d) => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+  return { startDate: toYmd(mon), endDate: toYmd(sun) };
+};
+
+const getCskvReminders = async (req, res) => {
+  try {
+    const {
+      timeRange = 'day',
+      date,
+      week,
+      month,
+      year,
+      startDate,
+      endDate,
+      quotaStartDate,
+      dailyQuota: rawQuota
+    } = req.query;
+
+    const dailyQuota = Math.max(1, parseInt(rawQuota, 10) || 15);
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+
+    let periodStart = todayStr;
+    let periodEnd = todayStr;
+
+    if (timeRange === 'day') {
+      const targetDate = (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : todayStr;
+      periodEnd = targetDate;
+      const monthStart = `${targetDate.slice(0, 7)}-01`;
+      periodStart = (quotaStartDate && /^\d{4}-\d{2}-\d{2}$/.test(quotaStartDate))
+        ? quotaStartDate
+        : monthStart;
+      if (periodStart > periodEnd) {
+        periodStart = periodEnd;
+      }
+    } else if (timeRange === 'week') {
+      let sDate = startDate;
+      let eDate = endDate;
+      if ((!sDate || !eDate) && week) {
+        const parsed = parseIsoWeekDates(week);
+        if (parsed) {
+          sDate = parsed.startDate;
+          eDate = parsed.endDate;
+        }
+      }
+      if (!sDate || !eDate) {
+        const now = new Date();
+        const day = now.getDay();
+        const diffToMonday = day === 0 ? -6 : 1 - day;
+        const mon = new Date(now);
+        mon.setDate(now.getDate() + diffToMonday);
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        const toYmd = (d) => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+        sDate = toYmd(mon);
+        eDate = toYmd(sun);
+      }
+      periodStart = sDate;
+      periodEnd = eDate < todayStr ? eDate : todayStr;
+    } else if (timeRange === 'month') {
+      const targetMonth = (month && /^\d{4}-\d{2}$/.test(month)) ? month : todayStr.slice(0, 7);
+      const [y, m] = targetMonth.split('-').map(Number);
+      const lastDay = new Date(y, m, 0).getDate();
+      const monthEnd = `${targetMonth}-${String(lastDay).padStart(2, '0')}`;
+      periodStart = `${targetMonth}-01`;
+      periodEnd = monthEnd < todayStr ? monthEnd : todayStr;
+    } else if (timeRange === 'year') {
+      const targetYear = (year && /^\d{4}$/.test(year)) ? year : todayStr.slice(0, 4);
+      const yearStart = `${targetYear}-01-01`;
+      const yearEnd = `${targetYear}-12-31`;
+      periodStart = yearStart;
+      periodEnd = yearEnd < todayStr ? yearEnd : todayStr;
+
+      if (!quotaStartDate) {
+        const minRow = await db.prepare('SELECT MIN(report_date) as min_date FROM reports').get();
+        if (minRow?.min_date && minRow.min_date > periodStart && minRow.min_date <= periodEnd) {
+          periodStart = minRow.min_date;
+        }
+      }
+    }
+
+    if (timeRange !== 'day' && quotaStartDate && /^\d{4}-\d{2}-\d{2}$/.test(quotaStartDate) && quotaStartDate > periodStart) {
+      periodStart = quotaStartDate;
+    }
+
+    const regions = await db.prepare(
+      'SELECT id, name, code, display_order FROM regions WHERE is_active = 1 ORDER BY display_order ASC'
+    ).all();
+
+    // If the selected period is entirely in the future, no one has missed anything yet
+    if (periodStart > periodEnd) {
+      return res.json({
+        success: true,
+        data: [],
+        meta: {
+          dailyQuota,
+          periodStart,
+          periodEnd,
+          daysCount: 0,
+          totalRegions: regions.length,
+          completedCount: regions.length,
+          incompleteCount: 0,
+          totalMissing: 0,
+          timeRange
+        }
+      });
+    }
+
+    // Build inclusive UTC date list from periodStart to periodEnd
+    const dates = [];
+    const [sy, sm, sd] = periodStart.split('-').map(Number);
+    const [ey, em, ed] = periodEnd.split('-').map(Number);
+    let curUtc = Date.UTC(sy, sm - 1, sd);
+    const endUtc = Date.UTC(ey, em - 1, ed);
+    while (curUtc <= endUtc) {
+      dates.push(new Date(curUtc).toISOString().slice(0, 10));
+      curUtc += 86400000;
+    }
+
+    // Fetch daily image counts per region in [periodStart, periodEnd]
+    const dailyRows = await db.prepare(`
+      SELECT 
+        r.region_id,
+        r.report_date,
+        COUNT(img.id) as image_count
+      FROM reports r
+      JOIN report_images img ON r.id = img.report_id
+      WHERE r.report_date >= ? AND r.report_date <= ?
+      GROUP BY r.region_id, r.report_date
+    `).all(periodStart, periodEnd);
+
+    const countsMap = {};
+    for (const row of dailyRows) {
+      if (!countsMap[row.region_id]) countsMap[row.region_id] = {};
+      countsMap[row.region_id][row.report_date] = Number(row.image_count || 0);
+    }
+
+    const missingList = [];
+    let completedCount = 0;
+
+    for (const reg of regions) {
+      let prevDeficit = 0;
+      let totalUploaded = 0;
+      let targetDateUploaded = 0;
+      let carriedOverBeforeTarget = 0;
+
+      for (let i = 0; i < dates.length; i++) {
+        const d = dates[i];
+        const uploaded = countsMap[reg.id]?.[d] || 0;
+        totalUploaded += uploaded;
+        if (i === dates.length - 1) {
+          carriedOverBeforeTarget = prevDeficit;
+          targetDateUploaded = uploaded;
+        }
+        prevDeficit = Math.max(0, dailyQuota + prevDeficit - uploaded);
+      }
+
+      const missingCount = prevDeficit;
+      if (missingCount > 0) {
+        missingList.push({
+          region_id: reg.id,
+          region_name: reg.name,
+          region_code: reg.code,
+          display_order: reg.display_order,
+          missing_count: missingCount,
+          total_uploaded: totalUploaded,
+          total_quota: dates.length * dailyQuota,
+          target_date_uploaded: targetDateUploaded,
+          target_date_quota: dailyQuota + carriedOverBeforeTarget,
+          carried_over: carriedOverBeforeTarget
+        });
+      } else {
+        completedCount++;
+      }
+    }
+
+    // Sort highest missing count first
+    missingList.sort((a, b) => {
+      if (b.missing_count !== a.missing_count) return b.missing_count - a.missing_count;
+      return (a.display_order || 0) - (b.display_order || 0);
+    });
+
+    const totalMissing = missingList.reduce((sum, item) => sum + item.missing_count, 0);
+
+    res.json({
+      success: true,
+      data: missingList,
+      meta: {
+        dailyQuota,
+        periodStart,
+        periodEnd,
+        daysCount: dates.length,
+        totalRegions: regions.length,
+        completedCount,
+        incompleteCount: missingList.length,
+        totalMissing,
+        timeRange
+      }
+    });
+  } catch (error) {
+    console.error('Error calculating CSKV reminders:', error);
+    res.status(500).json({ success: false, message: 'Lỗi khi tính danh sách nhắc nhở CSKV.' });
+  }
+};
+
+router.get('/cskv-reminders', getCskvReminders);
+router.get('/admin/cskv-reminders', getCskvReminders);
+
 export default router;
